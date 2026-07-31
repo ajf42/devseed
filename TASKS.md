@@ -135,4 +135,17 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** `scripts/gate-regression.sh` exits 0, asserting the gate
   exits 0 on two consecutive runs over a committed scratch project with a real
   test suite; `templates/.gitignore` exists; ADR-0005 records the decision.
+- **Status:** done
+- **Commit:** `af60cd7`
+
+## T-013 — Make §3's platform claim and the implementation agree
+
+- **Description:** §3 required Windows/PowerShell support the bash-only gate
+  never had. Narrow §3 to bash with Git Bash a stated Windows prerequisite, add
+  a PowerShell shim that finds bash or fails with install instructions, and make
+  `gate.sh` refuse to run under a non-bash shell.
+- **Acceptance:** `gate.ps1` runs the gate from PowerShell, passes `--fast`
+  through, and propagates the exit code; it exits 2 with install instructions
+  when no bash is found; §3 and the implementation agree; ADR-0006 records the
+  rejected PowerShell-reimplementation alternative.
 - **Status:** in-progress — hash recorded next commit

@@ -24,6 +24,18 @@
 # surface a failed check as exit 1, which does not block.
 set -uo pipefail
 
+# This script is bash, not POSIX sh: it uses BASH_SOURCE, arrays of behaviour
+# via `local`, and [[-free but bash-specific idioms. Running it under dash or
+# sh silently mis-resolves BASH_SOURCE and the gate would check the wrong
+# directory. Fail loudly instead. On Windows, Git Bash is the supported shell
+# (DESIGN.md §3, ADR-0006); gate.ps1 is the shim that finds it.
+if [ -z "${BASH_VERSION:-}" ]; then
+  printf 'GATE FAIL: this gate requires bash, but is running under a different shell.\n' >&2
+  printf 'Run it as: bash %s\n' "$0" >&2
+  printf 'On Windows, install Git for Windows (which provides Git Bash): https://git-scm.com/download/win\n' >&2
+  exit 2
+fi
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ -f "$HERE/lib.sh" ] || {
