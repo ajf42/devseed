@@ -13,9 +13,13 @@
 #   ${CLAUDE_PROJECT_DIR}. It is LOCATED via ${CLAUDE_PLUGIN_ROOT} by the hook
 #   that invokes it. Do not reverse these.
 #
-# Must run on both POSIX shells and Windows (Git Bash / PowerShell-invoked).
-# A gate that only runs on one platform is a gate that silently does not run.
-set -euo pipefail
+# Bash, and on Windows that means Git Bash -- a stated prerequisite (DESIGN.md
+# §3, ADR-0006). A gate that only runs on one platform silently does not run.
+#
+# Deliberately NOT `set -e`: with -e a failed command exits 1, and Claude Code
+# treats exit 1 as a non-blocking error and proceeds anyway. A gate that returns
+# 1 is a gate that does nothing. Control exit codes explicitly -- 0 pass, 2 fail.
+set -uo pipefail
 
-echo "gate.sh: placeholder -- no checks defined yet (Prompt 3)" >&2
+echo "gate.sh: placeholder -- the working gate ships in the plugin at gates/" >&2
 exit 0

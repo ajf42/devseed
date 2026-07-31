@@ -148,4 +148,15 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   through, and propagates the exit code; it exits 2 with install instructions
   when no bash is found; §3 and the implementation agree; ADR-0006 records the
   rejected PowerShell-reimplementation alternative.
+- **Status:** done
+- **Commit:** `64ebd90`
+
+## T-014 — Disarm the `set -e` trap in the gate template
+
+- **Description:** `templates/gate.sh` opened `set -euo pipefail`, contradicting
+  the real gate, which deliberately omits `-e` because it surfaces a failed
+  check as exit 1 — and exit 1 does not block. Anyone filling in the template
+  from that placeholder would inherit the exact bug the build rules warn about.
+- **Acceptance:** `templates/gate.sh` uses `set -uo pipefail` and carries the
+  one-line reason, while remaining a placeholder per SG-0003.
 - **Status:** in-progress — hash recorded next commit
