@@ -5,7 +5,35 @@ superseded, never edited away.
 
 This is not the template that ships to consumer projects — that one lives at
 [`plugins/governed-dev/templates/DECISIONS.md`](plugins/governed-dev/templates/DECISIONS.md)
-and is empty by design.
+and is a skeleton by design.
+
+## Format
+
+Every entry carries four parts, in this order:
+
+- **Status** — `Accepted`, `Superseded by ADR-NNNN`, or `Rejected`.
+- **Context** — the situation forcing a choice, and **the alternatives
+  considered with why each was rejected**. An ADR that names only the option
+  taken records a preference, not a decision; the rejected paths are what make
+  it possible to tell later whether the reasoning still holds.
+- **Decision** — what was chosen, stated so it can be checked against reality.
+- **Consequences** — what follows, including the costs accepted. An entry with
+  only upsides in this section is incomplete.
+
+## Conventions
+
+- **Newer entries append to the bottom.** Reading top to bottom is reading
+  chronologically.
+- **Superseded decisions are marked superseded, never deleted.** Set the old
+  entry's Status to `Superseded by ADR-NNNN` and leave everything else intact.
+  The superseding entry names what it replaces and why. History is not
+  rewritten: a decision that was reversed is evidence about how this project
+  reasons, and deleting it makes the reversal invisible to the next reader —
+  who then has no way to know the ground has already been walked.
+- **Numbering is permanent.** `ADR-0003` refers to the same thing forever, even
+  once superseded. Numbers are never reused.
+- Corrections to typos and links are fine in place. Corrections to *reasoning*
+  are a new entry.
 
 ---
 
@@ -34,6 +62,26 @@ assumption becomes indistinguishable from a sanctioned decision — the failure
 mode `/DESIGN.md` §2 exists to prevent. Worse, the tooling that governs projects
 would depend on being copy-pasted between them, inheriting the drift problem it
 exists to eliminate.
+
+**Alternatives considered:**
+
+- **Keep one `.claude/` and separate by naming convention** (e.g. a `shipped-`
+  prefix). Rejected: audience would depend on unenforced discipline, and a
+  misnamed file fails silently — either shipping devseed's internal rules to
+  every consumer, or withholding a rule the consumers need. Path-based
+  separation cannot be forgotten mid-edit.
+- **Two repositories, one for governance and one for the plugin.** Rejected:
+  ends the dogfooding. The plugin would no longer be developed under the
+  discipline it exports, which is the only ongoing test that the discipline is
+  usable. It also makes every change a cross-repo coordination problem.
+- **No plugin — copy `.claude/` into each project by hand.** Rejected: this is
+  precisely the drift problem devseed exists to prevent. Every copy diverges
+  from the day it is made, and there is no route for a fix to propagate.
+- **Make the repository root itself the plugin**, with no `plugins/`
+  subdirectory. Rejected: the plugin root is what gets installed, so devseed's
+  own `DESIGN.md`, `CLAUDE.md`, and rules would ship to every consumer. It also
+  forces marketplace and plugin manifests to share one root, coupling the
+  question "what is published" to "what is installed".
 
 ### Decision
 
@@ -82,16 +130,110 @@ specific release — at which point the need is real rather than anticipated.
 
 ---
 
+## ADR-0002 — Ledger documents exist as two parallel sets
+
+- **Date:** 2026-07-31
+- **Status:** Accepted
+
+### Context
+
+The instruction to create four ledger documents (`CLAUDE.md`, `DECISIONS.md`,
+`TASKS.md`, alongside `DESIGN.md`) collided with ADR-0001. ADR-0001 assigned the
+*skeletons* of those four to `plugins/governed-dev/templates/`, explicitly "not
+files that live in this repo's own root". But the acceptance criterion — a fresh
+session reading only these four files can tell what exists and what is next —
+describes a filled-in record of devseed's actual state, which a skeleton cannot
+provide.
+
+**Alternatives considered:**
+
+- **Root only, no templates.** Rejected: the bootstrap skill (T-008) would have
+  to generate each consumer's documents as fresh prose, which ADR-0001's
+  redirect explicitly forbids. Generated prose also varies per invocation, so
+  two projects bootstrapped a week apart would receive different structures and
+  neither would be traceable to a reviewed source.
+- **Templates only, no root set.** Rejected: devseed would have no working
+  memory and no backlog, ending the dogfooding that ADR-0001 preserved. It also
+  leaves `precedence.md` pointing at a `CLAUDE.md` that does not exist, so the
+  rule cannot be followed as written.
+- **One shared set, symlinked or generated from a single source.** Rejected: the
+  two sets have deliberately opposite content. Root is filled in and specific;
+  templates are structural and opinion-free. Sharing a source means either
+  shipping devseed's internal state to every consumer, or emptying devseed's own
+  record to keep the template clean.
+
+### Decision
+
+Maintain both. Root `CLAUDE.md`, `DECISIONS.md`, `TASKS.md`, and `DESIGN.md` are
+devseed's own, filled in and specific. The four under `templates/` are
+structural skeletons with no project-specific content, and are the sole source
+the bootstrap skill copies from.
+
+### Consequences
+
+- Closes SG-0001: root `CLAUDE.md` and `TASKS.md` now exist.
+- Four filenames exist twice with opposite roles, as ADR-0001 already noted.
+  This decision makes that permanent rather than transitional.
+- A change to the *structure* of a ledger document must be applied twice, and
+  the two can silently diverge. `templates/README.md` flags this at the point of
+  contact; there is no mechanical enforcement, and there should be once gates
+  exist (T-004).
+- Templates must stay free of opinions. A default that ships inside a skeleton
+  installs an unsanctioned constraint into every project at once — the failure
+  mode of `DESIGN.md` §2, at scale.
+
+---
+
+## ADR-0003 — `.claude/activity.jsonl` is committed, not ignored
+
+- **Date:** 2026-07-31
+- **Status:** Accepted
+
+### Context
+
+The activity log is an append-only audit trail of what agents did in this repo.
+It has to live somewhere, and the choice is whether git tracks it.
+
+**Alternatives considered:**
+
+- **Add it to `.gitignore`.** Rejected as the default: an audit trail that does
+  not survive a clone is not an audit trail. It would also be invisible in
+  review, which removes the only moment anyone would actually read it.
+- **Store it outside the repo** (e.g. under a user-level directory). Rejected:
+  decouples the record from the commit history it describes, so the two can no
+  longer be read against each other.
+
+### Decision
+
+Commit it. Empty at creation.
+
+### Consequences
+
+- Every session that appends produces a diff, and concurrent branches appending
+  to the same file will conflict on merge.
+- If that noise becomes real rather than theoretical, the first mitigation is a
+  `.gitattributes` entry marking the file `merge=union`, not reversing this
+  decision. Reversing it is a new ADR superseding this one.
+- Nothing writes to the file yet. It stays empty until hooks exist (T-005).
+
+---
+
 ## Spec gaps observed
 
 Assumptions made where the spec was silent, per
 [`.claude/rules/ambiguity.md`](.claude/rules/ambiguity.md). Each is a guess
 until confirmed.
 
-### SG-0001 — Root `CLAUDE.md` and `TASKS.md` do not exist
+**Convention:** a gap that gets settled is marked `(resolved in <ref>)` in its
+heading and its Status updated — it is **not** removed. The record of what was
+once ambiguous is the useful part: it shows where the spec was thin, which is
+where it is likely to be thin again.
+
+### SG-0001 — Root `CLAUDE.md` and `TASKS.md` do not exist *(resolved in ADR-0002)*
 
 - **Date:** 2026-07-31
-- **Status:** Open — needs human confirmation
+- **Status:** Resolved — both files created under T-003; the assumption below
+  held, and the two files were Prompt 2's work as guessed.
 
 The instruction for this change refers to "this repo's own
 DESIGN.md/CLAUDE.md/DECISIONS.md/TASKS.md (from Prompt 1)" as an existing

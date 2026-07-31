@@ -9,13 +9,17 @@ and are **never copied anywhere**. The two sets have the same names and
 opposite roles. Before editing a file with one of these names, check which
 directory you are in.
 
-| File | Filled in by | Becomes, in the consumer project |
+| File | Status | Becomes, in the consumer project |
 |---|---|---|
-| `DESIGN.md` | Prompt 2 | That project's constitution |
-| `CLAUDE.md` | Prompt 2 | That project's current-state record |
-| `DECISIONS.md` | Prompt 2 | That project's decision log |
-| `TASKS.md` | Prompt 2 | That project's task ledger |
-| `gate.sh` | Prompt 3 | That project's blocking check |
+| `DESIGN.md` | skeleton ready | That project's constitution |
+| `CLAUDE.md` | skeleton ready | That project's current-state record |
+| `DECISIONS.md` | skeleton ready | That project's decision log |
+| `TASKS.md` | skeleton ready | That project's task ledger |
+| `gate.sh` | placeholder (T-004) | That project's blocking check |
+
+`{{PROJECT_NAME}}` is the only substitution these skeletons expect. The
+bootstrap skill (T-008) copies the files and replaces it; everything else is
+filled in by whoever adopts the project.
 
 These are skeletons, not finished documents. A skeleton that arrives with
 opinions already baked in is an unsanctioned constraint delivered at scale —
