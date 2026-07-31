@@ -1,0 +1,11 @@
+{
+  "_README": "Prompt 4 fills in the real hook definitions. The two _CONVENTION notes below are load-bearing and must survive that edit.",
+
+  "_CONVENTION_PLUGIN_ROOT": "Scripts SHIPPED WITH THIS PLUGIN are referenced with ${CLAUDE_PLUGIN_ROOT}. Never ${CLAUDE_PROJECT_DIR}. On install the plugin is copied to a cache directory outside the consuming project, so ${CLAUDE_PROJECT_DIR} would resolve to whatever project the plugin is running inside and silently fail to find the plugin's own files -- or worse, find a same-named file belonging to the consumer.",
+
+  "_CONVENTION_PROJECT_DIR": "gate.sh operates on the CONSUMING PROJECT'S CODE, so paths it inspects are rooted at ${CLAUDE_PROJECT_DIR}. Never ${CLAUDE_PLUGIN_ROOT}. A gate rooted at the plugin's own directory would check the plugin's files instead of the code under change and pass unconditionally.",
+
+  "_CONVENTION_SUMMARY": "Locate the script with ${CLAUDE_PLUGIN_ROOT}; point the script at ${CLAUDE_PROJECT_DIR}. Both appear in a single hook entry: command is \"${CLAUDE_PLUGIN_ROOT}/gates/gate.sh\" and the target it checks is ${CLAUDE_PROJECT_DIR}. Reversing either one fails silently rather than loudly, which is why it is written down here.",
+
+  "hooks": {}
+}

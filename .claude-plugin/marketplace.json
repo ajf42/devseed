@@ -1,0 +1,12 @@
+{
+  "name": "ajf42-devtools",
+  "owner": { "name": "Andrew Fitzpatrick" },
+  "description": "Self-governing agentic SDLC: gates, hooks, and agent roster",
+  "plugins": [
+    {
+      "name": "governed-dev",
+      "source": "./plugins/governed-dev",
+      "description": "Deterministic gates, boundary-enforced agents, and drift guards for agentic development"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "governed-dev",
+  "description": "Deterministic gates, boundary-enforced agents, and drift guards for agentic development",
+  "author": { "name": "Andrew Fitzpatrick" }
+}
