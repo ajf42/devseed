@@ -315,4 +315,5 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   temporary, distinguishes that from a reversal of the original reasoning, and
   names what is still missing; T-011 stays open rather than being closed by
   restatement.
-- **Status:** in-progress — hash recorded next commit
+- **Status:** done
+- **Commit:** `fd3faea`
