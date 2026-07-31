@@ -159,4 +159,16 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   from that placeholder would inherit the exact bug the build rules warn about.
 - **Acceptance:** `templates/gate.sh` uses `set -uo pipefail` and carries the
   one-line reason, while remaining a placeholder per SG-0003.
+- **Status:** done
+- **Commit:** `a4a723b`
+
+## T-015 — Check 5 must verify the hash resolves, not just its shape
+
+- **Description:** Check 5 matched hash *format*, so a task marked done with a
+  fabricated but well-formed hash passed. A ledger that accepts unresolvable
+  hashes proves nothing, which defeats the check's stated purpose. Verify with
+  `git cat-file -t` and distinguish "no hash" from "hash resolves to nothing".
+- **Acceptance:** `scripts/gate-regression.sh` asserts a real hash is accepted,
+  `deadbee` is rejected, and a done task with no hash is rejected; devseed's own
+  gate still exits 0 with every recorded hash resolving.
 - **Status:** in-progress — hash recorded next commit

@@ -166,8 +166,10 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
   with a matching entry under "Spec gaps observed" in `DECISIONS.md`. The id is
   the link; without it a marker is untraceable and therefore indistinguishable
   from a decision that was actually made.
-- A task heading is `## T-NNN`. A commit hash is a backticked hex string;
-  `pending` deliberately does not satisfy check 5.
+- A task heading is `## T-NNN`. A commit hash is 7+ hex characters in backticks
+  and must **resolve to a commit in this repository** — check 5 runs
+  `git cat-file -t`, so a well-formed but fabricated hash fails. `pending`
+  deliberately does not satisfy it either.
 
 ### Known limits
 

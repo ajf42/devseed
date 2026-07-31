@@ -52,6 +52,25 @@ run_gate 0 "run 1 on a committed tree"
 run_gate 0 "run 2 on the same tree (no changes between runs)"
 run_gate 0 "run 3, --fast" --fast
 
+
+# --- Item 4 regression -------------------------------------------------------
+# Check 5 originally matched hash *shape*. A fabricated but well-formed hash
+# passed, so the ledger could claim work no commit ever did.
+echo
+echo "item 4 -- check 5 must verify the hash resolves, not just its shape:"
+printf '\n## T-001 — real\n\n- **Status:** done\n- **Commit:** `%s`\n' \
+  "$( cd "$WORK" && git rev-parse --short=8 HEAD )" >> "$WORK/TASKS.md"
+( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm "ledger" )
+run_gate 0 "real commit hash accepted"
+
+printf '\n## T-002 — fabricated\n\n- **Status:** done\n- **Commit:** `deadbee`\n' >> "$WORK/TASKS.md"
+run_gate 2 "fabricated hash 'deadbee' rejected"
+
+# And a done task with no hash at all.
+scaffold
+printf '\n## T-003 — hashless\n\n- **Status:** done\n- **Commit:** —\n' >> "$WORK/TASKS.md"
+run_gate 2 "done task with no hash rejected"
+
 echo
 echo "summary: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 2
