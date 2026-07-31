@@ -124,12 +124,64 @@ deferred — it is out of scope.
 
 ## 5. Build rules
 
-> **Placeholder — filled in by Prompt 3.**
->
-> This section defines what the build must satisfy: which gates exist, what
-> blocks versus what warns, and what "done" means for a change. Until it is
-> written, `.claude/gates/` is empty and nothing is mechanically enforced. Treat
-> that as a known hole, not as permission.
+**`plugins/governed-dev/gates/gate.sh` is the authority.** This section
+describes what the gate enforces; it does not define it. If the prose here and
+the script disagree, **the script wins and this prose gets fixed** — a rule that
+lives only in prose is advice, and advice is optional in practice. Correcting §5
+to match the script is a correction, not an amendment, and does not go through
+§6.
+
+### The contract
+
+- **Exit 0 = pass. Exit 2 = fail. Never exit 1.** Claude Code treats exit 1 as a
+  non-blocking error and proceeds anyway; only exit 2 blocks. A gate that
+  returns 1 is a gate that does nothing.
+- **Verification only — no side effects.** The gate never stages, commits,
+  pushes, or writes any file. It emits an exit code and stderr. CI runs the same
+  script (T-009), so a gate that mutated git state would behave differently
+  depending on who invoked it. Commit-and-push belongs to the caller, *after*
+  the gate passes.
+- **Failure messages are instructions, not complaints.** They name the file and
+  what to do about it, because an agent reads and acts on that text.
+- **A check that cannot run is a failed check.** If a project declares tests and
+  the runner is absent, that is exit 2, not a skip. Silent degradation is the
+  failure mode being engineered against.
+
+### What it enforces
+
+Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
+
+| # | Check | Fails when |
+|---|---|---|
+| 1 | Code builds | A declared build (npm `build`, Makefile `build`, Python `src/`) errors, or its toolchain is missing |
+| 2 | Tests pass | A declared or discovered suite fails, or its runner is missing |
+| 3 | Lint and format clean | A configured linter/formatter reports problems, or is missing |
+| 4 | Working memory current | Files under `src/` changed but `CLAUDE.md` did not |
+| 5 | Task ledger honest | A `## T-NNN` task is marked `done` with no commit hash |
+| 6 | Spec gaps answered | A `TODO(spec)` marker in a changed file cites no `SG-NNNN` id, or cites one absent from `DECISIONS.md` |
+
+### Conventions the gate depends on
+
+- A spec-gap marker is written `TODO(spec): SG-NNNN — <what the spec omits>`,
+  with a matching entry under "Spec gaps observed" in `DECISIONS.md`. The id is
+  the link; without it a marker is untraceable and therefore indistinguishable
+  from a decision that was actually made.
+- A task heading is `## T-NNN`. A commit hash is a backticked hex string;
+  `pending` deliberately does not satisfy check 5.
+
+### Known limits
+
+These are deliberate, and stated so they are not mistaken for coverage:
+
+- **"Declared" is the trigger for checks 1–3.** A project that declares no
+  build, tests, or linter passes them vacuously, and says so on stderr. This is
+  what makes the gate runnable in devseed itself, which by §3 has no runtime.
+  The protection against silent degradation is narrower than it looks: it
+  catches *declared-but-unrunnable*, not *never-declared*.
+- **Check 6 skips `.md` files**, since the documents defining the convention
+  would otherwise match it. A marker parked in prose is not caught.
+- **Check 4 keys on `src/`.** Projects that put code elsewhere are not covered
+  until the path is made configurable.
 
 ## 6. Amendment procedure
 

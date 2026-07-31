@@ -12,9 +12,12 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance criteria are written before the work starts**, not after. A task
   whose criteria are written afterward is a description of what happened, and
   cannot fail.
-- **Commit hash** is recorded when the task is done. Because a commit cannot
-  contain its own hash, the hash is filled in by the *next* commit that touches
-  this file; `pending` is the correct value in between.
+- **Commit hash** is recorded when the task is done, and `gate.sh` check 5
+  enforces it: a task marked `done` without a hash fails the gate. Because a
+  commit cannot contain its own hash, a task finished in the current commit
+  stays `in-progress` until the *next* commit records both its status and its
+  hash. Do not park `pending` in the Commit field — the gate rejects it, which
+  is the intended behaviour.
 - Tasks that turn out to be spec gaps move to `DECISIONS.md` under "Spec gaps
   observed" and are marked `blocked` here with a pointer.
 
@@ -52,7 +55,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   budget; DECISIONS.md documents the superseded convention; a fresh session
   reading only these four files can tell what exists and what is next.
 - **Status:** done
-- **Commit:** pending
+- **Commit:** `5a84fef`
 
 ## T-004 — Build rules and `gate.sh`
 
@@ -60,8 +63,10 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `plugins/governed-dev/gates/gate.sh`, plus the `templates/gate.sh` seed.
 - **Acceptance:** §5 defines what blocks vs. what warns and what "done" means;
   the gate runs on both POSIX and Windows shells; it operates on
-  `${CLAUDE_PROJECT_DIR}`, not the plugin's own directory.
-- **Status:** todo (Prompt 3)
+  `${CLAUDE_PROJECT_DIR}`, not the plugin's own directory; exits 0 on a clean
+  tree and 2 with an actionable message on failure, never 1.
+- **Status:** in-progress — hash recorded next commit, per the convention above
+- **Note:** `templates/gate.sh` deliberately left as a placeholder; see SG-0003.
 
 ## T-005 — Hooks
 

@@ -37,8 +37,12 @@ plugin installed into other projects. See ADR-0001.
 
 **Built and working:**
 
-- Constitution at [`DESIGN.md`](DESIGN.md). Sections 1–4 substantive.
-  §5 (build rules) and §6 (amendment procedure) are placeholders.
+- Constitution at [`DESIGN.md`](DESIGN.md). Sections 1–5 substantive.
+  §6 (amendment procedure) is still a placeholder.
+- **The gate**, at `plugins/governed-dev/gates/`. `gate.sh` orchestrates six
+  checks in `check-*.sh`; `--fast` runs 1–3. Exit 0 pass, 2 fail, never 1.
+  Verification only — it writes nothing. Run it as
+  `bash plugins/governed-dev/gates/gate.sh`.
 - Two rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority) and `ambiguity.md` (never invent past a spec gap).
   These govern devseed and are deliberately **not** shipped in the plugin.
@@ -55,10 +59,15 @@ plugin installed into other projects. See ADR-0001.
 
 **Not built yet:**
 
-- `plugins/governed-dev/agents/`, `skills/`, `gates/` are empty. `hooks.json`
-  registers zero hooks — it currently carries only the path-variable
-  convention notes. Component inventory reads 0/0/0. **Nothing is
-  mechanically enforced yet.** Treat that as a known hole, not as permission.
+- `plugins/governed-dev/agents/` and `skills/` are empty. `hooks.json`
+  registers zero hooks — it carries only the path-variable convention notes,
+  so **the gate exists but nothing invokes it automatically yet** (T-005).
+  Until then it must be run by hand.
+- Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
+  tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
+  Known limits in §5. Verified against a scratch project that does have tests.
+- `templates/gate.sh` is still a placeholder — whether consumers vendor their
+  own copy is open as SG-0003, and CI (T-009) forces the answer.
 - `plugins/governed-dev/templates/` holds structural skeletons only, with no
   project-specific content by design.
 - Repository visibility is **public**; private was required. `gh` is not
@@ -93,7 +102,10 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
   .claude-plugin/plugin.json       no "version" key, deliberately
   agents/                          empty — Prompt 6 adds the scribe
   skills/                          empty — Prompt 7 adds bootstrap
-  gates/                           empty — Prompt 3 adds gate.sh
+  gates/                           THE GATE — definition of "done"
+    gate.sh                        orchestrator; --fast = checks 1-3
+    lib.sh                         die/note/have, changed_files
+    check-0[1-6]-*.sh              one check each, sourced in order
   hooks/hooks.json                 0 hooks; carries path conventions
   templates/                       seed docs copied into consumer projects
     DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh README.md
@@ -111,8 +123,9 @@ code a gate inspects**. Recorded in `hooks/hooks.json`.
 
 ## Build rules
 
-Defined in **[`DESIGN.md`](DESIGN.md) §5**, not here. That section is currently
-a placeholder — until it is written, no gate blocks anything.
+Described in **[`DESIGN.md`](DESIGN.md) §5**, but the *authority* is
+`plugins/governed-dev/gates/gate.sh`. If the prose and the script disagree, the
+script wins and the prose gets fixed. Do not restate the rules here.
 
 ## Compression protocol
 

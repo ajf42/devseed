@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# gate.sh -- placeholder. Prompt 3 fills this in.
+# gate.sh -- PLACEHOLDER, deliberately not filled in. See SG-0003.
 #
-# Copied into a consumer project as its blocking check.
+# The working gate lives in the plugin at gates/gate.sh and runs against
+# ${CLAUDE_PROJECT_DIR}, so a consumer project needs no local copy for normal
+# use. Whether CI should vendor one instead -- ${CLAUDE_PLUGIN_ROOT} does not
+# resolve where the plugin is not installed -- is unresolved, and copying a
+# second gate here before that is settled would create exactly the drift
+# ADR-0002 flagged. Do not fill this in speculatively.
 #
 # PATH CONVENTION (see ../hooks/hooks.json):
 #   This script inspects the CONSUMING PROJECT'S code, rooted at
