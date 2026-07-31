@@ -232,7 +232,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** No task reads "not yet specified"; tasks exist for `/task`,
   `/adr`, `/resume`, `/amend` and ticket sync; T-006 and T-009 carry real
   criteria; reconstructed criteria are flagged as such.
-- **Status:** in-progress — hash recorded next commit
+- **Status:** done
+- **Commit:** `1dce0de`
 
 ## T-018 — `/task` skill
 
@@ -288,3 +289,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Note:** Recorded so a future session finds it rather than reinventing it.
   "Optional" and "forgotten" are different states, and only one of them is
   written down.
+
+## T-023 — Write the README
+
+- **Description:** `README.md` was one line and the repository is public. Write
+  what devseed is, the install two-liner, and the four-filenames-exist-twice
+  warning that `CLAUDE.md` already flags as the sharpest edge in the layout.
+- **Acceptance:** README states the problem devseed addresses, the two install
+  commands, the Windows/Git Bash prerequisite, the namespacing surprise, and the
+  root-vs-templates warning with the test for telling them apart.
+- **Status:** in-progress — hash recorded next commit
