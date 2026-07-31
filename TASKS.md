@@ -79,11 +79,21 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   hook count.
 - **Status:** todo (Prompt 4)
 
-## T-006 — Prompt 5
+## T-006 — Drift guards
 
-- **Description:** Not yet specified. Placeholder so numbering matches the
-  prompt series; criteria to be written before work starts.
-- **Status:** todo
+- **Description:** Guards that detect divergence between what the documents
+  claim and what the repository contains — the failure class `precedence.md`
+  names as *structural* disagreement, which must be surfaced rather than
+  reconciled silently. The review that produced T-012..T-015 found exactly this
+  class by hand; these guards are the mechanical version.
+- **Acceptance:** Detects at least: a `DESIGN.md` claim with no implementation
+  behind it (§3 claimed Windows/PowerShell support the bash-only gate never
+  had — that specific case must be caught); `CLAUDE.md` describing files or
+  components that no longer exist; a `TASKS.md` entry referencing a task id or
+  spec-gap id that appears nowhere else. Reports drift; changes nothing. Exits
+  non-zero on detection so it can be wired into the gate or CI.
+- **Status:** todo (Prompt 5)
+- **Note:** criteria reconstructed, not transcribed — see SG-0004.
 
 ## T-007 — Agent roster with enforced tool boundaries
 
@@ -121,11 +131,20 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   project outside this repo.
 - **Status:** todo (Prompt 7)
 
-## T-009 — Prompt 8
+## T-009 — CI parity
 
-- **Description:** Not yet specified. Placeholder; criteria to be written before
-  work starts.
-- **Status:** todo
+- **Description:** Run the same gate in CI that runs locally, so "passes on my
+  machine" and "passes in CI" cannot diverge. CI calls `gate.sh` itself, not a
+  reimplementation.
+- **Acceptance:** CI invokes the identical `gate.sh` — no forked copy, no
+  reimplemented checks; a change that fails locally fails CI and vice versa; the
+  gate's no-side-effects rule holds under CI, which is why commit-and-push lives
+  in `/task` and never in the gate. Resolving **SG-0003** is a prerequisite:
+  `${CLAUDE_PLUGIN_ROOT}` does not resolve where the plugin is not installed, so
+  CI either vendors a copy or installs the plugin first, and that question is
+  still open.
+- **Status:** todo (Prompt 8)
+- **Note:** criteria reconstructed, not transcribed — see SG-0004.
 
 ## T-010 — Amendment procedure
 
@@ -201,4 +220,71 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** T-007 names all five agents with per-agent `tools:`
   allowlists and an observable-denial acceptance criterion; §4's deferred entry
   is narrowed to speculative agents; ADR-0007 records the rejected alternatives.
+- **Status:** done
+- **Commit:** `44e56cf`
+
+## T-017 — Transcribe the untranscribed prompt specs into tasks
+
+- **Description:** Three of Prompt 7's four skills, Prompt 7a, and the criteria
+  for Prompts 5 and 8 existed in the source series but never reached TASKS.md.
+  The convention requires criteria written before work starts; these were simply
+  not written down.
+- **Acceptance:** No task reads "not yet specified"; tasks exist for `/task`,
+  `/adr`, `/resume`, `/amend` and ticket sync; T-006 and T-009 carry real
+  criteria; reconstructed criteria are flagged as such.
 - **Status:** in-progress — hash recorded next commit
+
+## T-018 — `/task` skill
+
+- **Description:** The skill that runs a task end to end and is the *only* thing
+  that commits. `gate.sh` is verification-only precisely so that this can own
+  commit-and-push.
+- **Acceptance:** The gate must pass **before** anything is committed — a failed
+  gate aborts without staging. Refuses to commit directly to `main` or `master`,
+  branching first. A push failure is **reported, never swallowed**: the skill
+  exits non-zero and says what failed, rather than reporting success on a commit
+  that only exists locally. Records the commit hash against the task in
+  `TASKS.md`, per the hash convention.
+- **Status:** todo (Prompt 7)
+
+## T-019 — `/adr` skill
+
+- **Description:** Appends a decision entry to `DECISIONS.md` in the format that
+  file defines.
+- **Acceptance:** Appends to the bottom; never edits or deletes an existing
+  entry; refuses to write an entry whose Context names no rejected alternatives,
+  since an ADR without them records a preference rather than a decision; marks
+  superseded entries rather than removing them.
+- **Status:** todo (Prompt 7)
+
+## T-020 — `/resume` skill
+
+- **Description:** Reconstructs working context for a fresh session from the
+  ledger alone — the acceptance criterion T-003 was built against.
+- **Acceptance:** Reads `CLAUDE.md`, `TASKS.md`, `DECISIONS.md` and reports what
+  exists, what is in progress, and what is next, without exploring the codebase;
+  names open spec gaps; does not modify anything.
+- **Status:** todo (Prompt 7)
+
+## T-021 — `/amend` skill
+
+- **Description:** Executes the amendment procedure that T-010 writes into
+  `DESIGN.md` §6. **T-010 currently writes §6 prose with nothing able to run
+  it** — the procedure and its executor are separate tasks, and the procedure
+  alone is advice.
+- **Acceptance:** Executes §6's steps; records the amendment in `DECISIONS.md`;
+  refuses to amend `DESIGN.md` to match drifted code, which `precedence.md`
+  forbids and which is the one edit an amendment tool must not make easy.
+  Distinguishes an amendment from a correction as §6 defines it.
+- **Status:** todo (Prompt 9, paired with T-010)
+
+## T-022 — Ticket sync (optional)
+
+- **Description:** Sync tasks against an external ticket system. **Optional and
+  dormant by design** — it stays inert unless deliberately enabled.
+- **Acceptance:** Absent configuration it does nothing and reports nothing; no
+  other task depends on it; enabling it is an explicit, recorded act.
+- **Status:** todo — **optional**, may never be built (Prompt 7a)
+- **Note:** Recorded so a future session finds it rather than reinventing it.
+  "Optional" and "forgotten" are different states, and only one of them is
+  written down.

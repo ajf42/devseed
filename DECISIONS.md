@@ -522,3 +522,26 @@ needs, would bake in the answer before the question is asked.
 
 **Depends on this:** T-009 (CI) cannot be built until it is settled, and T-008
 (bootstrap) needs to know whether to copy a gate into the target project.
+
+### SG-0004 — T-006 and T-009 criteria were reconstructed, not transcribed
+
+- **Date:** 2026-07-31
+- **Status:** Open — needs human confirmation against the source prompts
+
+The instruction to fill in T-006 and T-009 said their criteria "are fully
+specified in the source document" and "were simply not transcribed." That source
+document — the full prompt series — is not available in this session. What was
+available was the titles ("drift guards", "CI parity") and the surrounding
+context in this repository.
+
+**Assumed:** criteria were *derived* from those titles plus what the repo already
+establishes — for drift guards, the structural-disagreement class named in
+`precedence.md` and demonstrated by the §3 platform defect (ADR-0006); for CI
+parity, the no-side-effects rule and the unresolved `${CLAUDE_PLUGIN_ROOT}`
+question in SG-0003. They are plausible and specific, but they are not the
+source text.
+
+**Depends on this:** if the real Prompt 5 and Prompt 8 specify different
+criteria, these tasks will have been written to the wrong target — and the
+convention that criteria are written before work starts will have been satisfied
+in form only. Check them against the source before starting either task.
