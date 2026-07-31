@@ -484,19 +484,37 @@ governance set. Left absent rather than guessed at.
 current-state record and no task ledger, and `precedence.md` has no `CLAUDE.md`
 to grant current-state authority to.
 
-### SG-0002 — Repository visibility contradicts the stated requirement
+### SG-0002 — The repository is public, deliberately and temporarily
 
-- **Date:** 2026-07-31
-- **Status:** Open — blocked on human action
+- **Date:** 2026-07-31 (updated same day)
+- **Status:** Open — deliberate, temporary, end condition not yet recorded
 
-Acceptance requires a **private** GitHub repository. `github.com/ajf42/devseed`
-already existed at the time of this change and is **public** — confirmed by an
-unauthenticated API request returning `"private": false`. The `gh` CLI is not
-installed on this machine, so visibility could not be changed here.
+**Superseding the original entry**, which read that private was required and
+public was an unresolved gap. That is no longer the situation and the entry now
+contradicted reality — drift sitting in the file that catalogs drift.
 
-**Assumed:** the existing repository is the intended one and should be flipped
-to private rather than replaced. Not acted on unilaterally, because changing a
-repository's visibility is outward-facing and reversing it re-publishes history.
+`github.com/ajf42/devseed` is public. Confirmed by an unauthenticated API
+request returning `"private": false`. This is **deliberate and temporary**, not
+an oversight and not a reversal of the original reasoning.
+
+The original requirement was private, on the grounds of IP-entanglement risk.
+That concern has not been withdrawn — public is a window, not a new position.
+
+**Verified benefit while public:** `claude plugin marketplace add ajf42/devseed`
+clones over HTTPS unauthenticated, so the install loop can be tested from any
+directory or machine with no credential setup. Once private it needs `gh auth`
+or a credential helper.
+
+**Assumed:** nothing about the specific driver. The human confirmed "temporary"
+but has not recorded *what the window is for* or *what closes it*. Those are the
+two facts that make "temporary" meaningful rather than indefinite, and they are
+outstanding.
+
+**Depends on this:** T-011 stays open. Every push while this is open publishes
+to a public repository — currently governance documents and shell scripts with
+no secrets, but that holds only as long as the content stays that way. If the
+end condition is never recorded, "temporary" decays into "public", which is the
+same drift this entry was rewritten to remove.
 
 ### SG-0003 — Whether consumer projects vendor their own `gate.sh`
 

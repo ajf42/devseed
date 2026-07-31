@@ -155,13 +155,17 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   drifted code.
 - **Status:** todo (Prompt 9)
 
-## T-011 — Make the GitHub repository private
+## T-011 — Return the repository to private
 
-- **Description:** `github.com/ajf42/devseed` is public; private was required.
-  Needs `gh` installed and authenticated, or the GitHub web UI.
+- **Description:** `github.com/ajf42/devseed` is public, deliberately and
+  temporarily (SG-0002). The original private requirement rested on
+  IP-entanglement risk and has not been withdrawn. Needs `gh` installed and
+  authenticated, or the GitHub web UI.
 - **Acceptance:** An unauthenticated request to the repo API returns 404;
   `marketplace add` still resolves with credentials available.
-- **Status:** blocked — requires human action, see SG-0002
+- **Status:** blocked — deliberate temporary window, see SG-0002. **The end
+  condition is not recorded**; until it is, nothing distinguishes this from
+  indefinitely public.
 
 ## T-012 — Stop the gate poisoning itself with test artifacts
 
@@ -298,4 +302,17 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** README states the problem devseed addresses, the two install
   commands, the Windows/Git Bash prerequisite, the namespacing surprise, and the
   root-vs-templates warning with the test for telling them apart.
+- **Status:** done
+- **Commit:** `25bc1ca`
+
+## T-024 — Resolve the SG-0002 contradiction
+
+- **Description:** SG-0002 recorded private-was-required-and-public-is-a-gap
+  while the repository was deliberately public. The record and reality
+  disagreed — the drift class this system exists to catch, sitting in the file
+  that catalogs drift.
+- **Acceptance:** SG-0002 states plainly that public is deliberate and
+  temporary, distinguishes that from a reversal of the original reasoning, and
+  names what is still missing; T-011 stays open rather than being closed by
+  restatement.
 - **Status:** in-progress — hash recorded next commit
