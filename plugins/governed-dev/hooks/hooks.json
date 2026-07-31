@@ -1,5 +1,5 @@
 {
-  "_README": "Prompt 4 fills in the real hook definitions. The two _CONVENTION notes below are load-bearing and must survive that edit.",
+  "description": "governed-dev: wires the gate and the agent boundaries into the session lifecycle. See ./README.md.",
 
   "_CONVENTION_PLUGIN_ROOT": "Scripts SHIPPED WITH THIS PLUGIN are referenced with ${CLAUDE_PLUGIN_ROOT}. Never ${CLAUDE_PROJECT_DIR}. On install the plugin is copied to a cache directory outside the consuming project, so ${CLAUDE_PROJECT_DIR} would resolve to whatever project the plugin is running inside and silently fail to find the plugin's own files -- or worse, find a same-named file belonging to the consumer.",
 
@@ -7,5 +7,130 @@
 
   "_CONVENTION_SUMMARY": "Locate the script with ${CLAUDE_PLUGIN_ROOT}; point the script at ${CLAUDE_PROJECT_DIR}. Both appear in a single hook entry: command is \"${CLAUDE_PLUGIN_ROOT}/gates/gate.sh\" and the target it checks is ${CLAUDE_PROJECT_DIR}. Reversing either one fails silently rather than loudly, which is why it is written down here.",
 
-  "hooks": {}
+  "_CONVENTION_APPLIED": "Every entry below locates its script under ${CLAUDE_PLUGIN_ROOT}/hooks/. No entry names ${CLAUDE_PROJECT_DIR}, because the scripts resolve it themselves from the env var the harness sets, falling back to the event's cwd -- see hooks/lib.sh hook_root(). The gate is likewise reached at ${CLAUDE_PLUGIN_ROOT}/gates/gate.sh via hook_gate(), and is handed CLAUDE_PROJECT_DIR explicitly at the call site so it checks the consumer's code and not the plugin's.",
+
+  "_CONVENTION_SHELL_FORM": "Every entry uses SHELL form -- a command string, no args array -- with \"shell\": \"bash\" and the path placeholder wrapped in double quotes. Exec form (an args array) was tried first and is wrong here: it spawns the command directly with no shell, so on Windows \"bash\" must resolve on PATH. On the development machine Git Bash is installed at C:\\Program Files\\Git\\bin\\bash.exe and does NOT resolve on PATH, so every hook would silently never run -- no error, no output, no enforcement. Shell form lets the harness locate Git Bash itself, which it already does. The quotes are what exec form was wanted for: they keep a project path containing spaces from splitting. See ADR-0010.",
+
+  "_CONVENTION_ASYNC": "PostToolUse uses \"asyncRewake\", not \"async\". Both run in the background; only asyncRewake wakes Claude on exit 2 and shows it the stderr. Under plain async the gate would run, fail, and have its output discarded -- computing the failure and then throwing it away, which is worse than not checking.",
+
+  "_CONVENTION_MIRROR": "devseed also wires these same eight events in its own /.claude/settings.json, pointed at the working tree rather than the installed plugin, because an installed plugin pins to a commit SHA and is stale by default. That file is a MIRROR: the event set and matchers must match this one. T-006's drift guards assert it.",
+
+  "hooks": {
+    "Setup": [
+      {
+        "matcher": "init|maintenance",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/preflight.sh\"",
+            "shell": "bash",
+            "timeout": 20,
+            "statusMessage": "governed-dev: checking hook prerequisites"
+          }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/orient.sh\"",
+            "shell": "bash",
+            "timeout": 30,
+            "statusMessage": "governed-dev: reading project state"
+          }
+        ]
+      }
+    ],
+
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/boundary.sh\"",
+            "shell": "bash",
+            "timeout": 15,
+            "statusMessage": "governed-dev: checking agent boundary"
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/fast-gate.sh\"",
+            "shell": "bash",
+            "asyncRewake": true,
+            "timeout": 600,
+            "statusMessage": "governed-dev: fast gate (build, tests, lint)"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-gate.sh\"",
+            "shell": "bash",
+            "timeout": 600,
+            "statusMessage": "governed-dev: gate (definition of done)"
+          }
+        ]
+      }
+    ],
+
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/flush.sh\"",
+            "shell": "bash",
+            "timeout": 20,
+            "statusMessage": "governed-dev: saving in-flight state"
+          }
+        ]
+      }
+    ],
+
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/activity.sh\"",
+            "shell": "bash",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/activity.sh\"",
+            "shell": "bash",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
 }

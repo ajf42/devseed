@@ -77,7 +77,27 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `${CLAUDE_PROJECT_DIR}`; the existing `_CONVENTION_*` notes survive the edit;
   `claude plugin validate .` still passes; `plugin details` reports a nonzero
   hook count.
-- **Status:** todo (Prompt 4)
+- **Status:** in-progress (Prompt 4)
+- **Note:** Eight hooks registered across `Setup`, `SessionStart`, `PreToolUse`,
+  `PostToolUse`, `Stop`, `PreCompact`, `SessionEnd`, `SubagentStop`, with eight
+  scripts in `plugins/governed-dev/hooks/` and a devseed-only mirror at
+  `.claude/settings.json`. Four decisions departed from the instruction and are
+  recorded: ADR-0008 (the Stop gate releases after three blocks — today's API
+  has no `stop_hook_active`), ADR-0009 (the compaction flush writes
+  `.claude/in-flight.md`, because appending to `CLAUDE.md` would defeat gate
+  check 4), ADR-0010 (shell form, not exec form) and ADR-0011 (the mirror).
+  SG-0005 is open; SG-0006 was opened and resolved by ADR-0010.
+- **Verified:** 45 behavioural assertions pass against synthetic events —
+  every boundary case including all three Windows path spellings, the Stop
+  block JSON with the gate's stderr inside `reason`, the three-block breaker
+  and its reset, the disagreement detector on all four classes, the snapshot
+  cap, and JSONL validity. `gate.sh` exits 0 and `gate-regression.sh` reports
+  6/6. **Live:** the `PreToolUse` boundary blocked a real `Edit` the moment
+  `.claude/settings.json` landed — ADR-0010 records it.
+- **Three defects found by that testing, all invisible to inspection:** the
+  Windows drive-letter path mismatch silently disarmed the implementer boundary;
+  `grep -c` exiting 1 on zero matches yielded `"00"` and silently disabled one
+  disagreement check; exec form would have meant no hook ran at all.
 
 ## T-006 — Drift guards
 
@@ -92,6 +112,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   components that no longer exist; a `TASKS.md` entry referencing a task id or
   spec-gap id that appears nowhere else. Reports drift; changes nothing. Exits
   non-zero on detection so it can be wired into the gate or CI.
+- **Also required (added by T-005):** the hook wiring exists in two places —
+  `plugins/governed-dev/hooks/hooks.json`, which ships, and
+  `.claude/settings.json`, which is devseed's own mirror against the working
+  tree (ADR-0011). The scripts are shared, so the drift surface is the event
+  set, the matchers and the async flags. Assert the two agree. Nothing else
+  will notice, and a mirror that has silently stopped matching is the same
+  class of defect as a `CLAUDE.md` describing files that no longer exist.
 - **Status:** todo (Prompt 5)
 - **Note:** criteria reconstructed, not transcribed — see SG-0004.
 
@@ -116,10 +143,12 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   implementer run that attempts to write `DECISIONS.md` is blocked — not by a
   declared intention in its prompt. `claude plugin details governed-dev`
   reports five agents.
-- **Blocked on:** T-005. `tools:` gates which tools an agent has, not which
-  files it may touch, so the path boundary needs a `PreToolUse` deny hook.
-  Until that exists the boundary is documentation, and CLAUDE.md must not
-  describe it as enforced.
+- **Blocked on:** T-005, now partially cleared. The `PreToolUse` deny hook
+  exists (`hooks/boundary.sh`) and encodes all five boundaries, so the path
+  restriction `tools:` cannot express is in place — but it binds only work
+  carrying an `agent_type`, i.e. real subagents. The main session thread is
+  unbounded, per **SG-0005**. Until the agents exist the boundaries have nothing
+  to bind, and CLAUDE.md must not describe them as enforced.
 - **Status:** todo (Prompt 6)
 
 ## T-008 — Bootstrap skill

@@ -47,6 +47,17 @@ plugin installed into other projects. See ADR-0001.
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
   anything under `gates/`.
+- **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
+  `hooks.json` wire the gate and the agent boundaries into the lifecycle:
+  `Stop` runs the full gate and blocks the turn ending on failure (the
+  load-bearing one), `PreToolUse` denies writes across an agent boundary,
+  `PostToolUse` runs `--fast` on source edits, `SessionStart` briefs the
+  session, `PreCompact` saves in-flight state, `SessionEnd`/`SubagentStop`
+  append to `activity.jsonl`, `Setup` preflights `jq`. Shell form, not exec
+  form (ADR-0010). devseed wires the same eight against its own working tree in
+  [`.claude/settings.json`](.claude/settings.json) (ADR-0011); consumers get
+  them from the plugin. Local mechanics and what bites:
+  [`hooks/README.md`](plugins/governed-dev/hooks/README.md).
 - Two rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority) and `ambiguity.md` (never invent past a spec gap).
   These govern devseed and are deliberately **not** shipped in the plugin.
@@ -63,10 +74,13 @@ plugin installed into other projects. See ADR-0001.
 
 **Not built yet:**
 
-- `plugins/governed-dev/agents/` and `skills/` are empty. `hooks.json`
-  registers zero hooks — it carries only the path-variable convention notes,
-  so **the gate exists but nothing invokes it automatically yet** (T-005).
-  Until then it must be run by hand.
+- `plugins/governed-dev/agents/` and `skills/` are empty (T-007, T-008). The
+  boundaries in `hooks/boundary.sh` therefore have no agents to bind yet, and
+  bind only real subagents when they exist — the main session thread carries no
+  `agent_type` and is unbounded (SG-0005).
+- Nothing else. `jq` is installed (1.8.2) and `lib.sh` locates it even when it
+  is off `PATH`, which it is here — winget's Links directory only reaches
+  processes started after the install.
 - Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
   tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
   Known limits in §5. Verified against a scratch project that does have tests.
@@ -85,13 +99,21 @@ plugin installed into other projects. See ADR-0001.
    Check which directory you are in before editing.
 2. Plugin skills install namespaced — `/governed-dev:bootstrap`, not
    `/bootstrap`. A "missing" skill is usually this.
+3. **An installed plugin is pinned to a commit SHA and goes stale silently.**
+   `plugin.json` omits `version` by design (ADR-0001), so `install` resolves to
+   the SHA at install time and never moves. The copy on this machine sits at
+   `70542ef`, before the gate existed. This is why devseed wires its own hooks
+   from the working tree rather than through the plugin (ADR-0011).
 
 ## File structure as it stands
 
 ```
 .claude-plugin/marketplace.json    marketplace "ajf42-devtools"
 .claude/
-  activity.jsonl                   append-only audit log (committed)
+  settings.json                    devseed's OWN hook wiring (ADR-0011)
+  activity.jsonl                   append-only audit log (committed; ADR-0003)
+  in-flight.md                     PreCompact handoff note (ignored; ADR-0009)
+  .hook-state/                     per-session hook scratch (ignored)
   rules/
     precedence.md                  DESIGN.md vs CLAUDE.md authority
     ambiguity.md                   spec gaps: ask or record, never invent
@@ -111,7 +133,17 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
     gate.sh                        orchestrator; --fast = checks 1-3
     lib.sh                         die/note/have, changed_files
     check-0[1-6]-*.sh              one check each, sourced in order
-  hooks/hooks.json                 0 hooks; carries path conventions
+  hooks/                           THE LIFECYCLE WIRING — see its README.md
+    hooks.json                     8 hooks; carries the path conventions
+    lib.sh                         stdin JSON, jq guard, root/gate/state paths
+    preflight.sh   Setup           reports missing jq, git, gate, bash-on-PATH
+    orient.sh      SessionStart    briefs the session; flags state disagreement
+    boundary.sh    PreToolUse      denies writes across an agent boundary
+    fast-gate.sh   PostToolUse     gate --fast on source edits (asyncRewake)
+    stop-gate.sh   Stop            full gate; blocks the turn. Load-bearing.
+    flush.sh       PreCompact      writes .claude/in-flight.md (ADR-0009)
+    activity.sh    SessionEnd,     appends to .claude/activity.jsonl
+                   SubagentStop
   templates/                       seed docs copied into consumer projects
     DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh README.md
 ```
