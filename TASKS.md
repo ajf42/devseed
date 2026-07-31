@@ -65,7 +65,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   the gate runs on both POSIX and Windows shells; it operates on
   `${CLAUDE_PROJECT_DIR}`, not the plugin's own directory; exits 0 on a clean
   tree and 2 with an actionable message on failure, never 1.
-- **Status:** in-progress — hash recorded next commit, per the convention above
+- **Status:** done
+- **Commit:** `ae9bf3d`
 - **Note:** `templates/gate.sh` deliberately left as a placeholder; see SG-0003.
 
 ## T-005 — Hooks
@@ -124,3 +125,14 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** An unauthenticated request to the repo API returns 404;
   `marketplace add` still resolves with credentials available.
 - **Status:** blocked — requires human action, see SG-0002
+
+## T-012 — Stop the gate poisoning itself with test artifacts
+
+- **Description:** `changed_files()` counted pytest's `__pycache__/` as source
+  changes, so check 4 failed on a committed tree — on the first run and every
+  run after. Filter generated artifacts unconditionally; ship
+  `templates/.gitignore`; add a double-run regression.
+- **Acceptance:** `scripts/gate-regression.sh` exits 0, asserting the gate
+  exits 0 on two consecutive runs over a committed scratch project with a real
+  test suite; `templates/.gitignore` exists; ADR-0005 records the decision.
+- **Status:** in-progress — hash recorded next commit

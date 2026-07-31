@@ -43,6 +43,10 @@ plugin installed into other projects. See ADR-0001.
   checks in `check-*.sh`; `--fast` runs 1–3. Exit 0 pass, 2 fail, never 1.
   Verification only — it writes nothing. Run it as
   `bash plugins/governed-dev/gates/gate.sh`.
+- **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
+  no test suite of its own, so gate bugs involving real tooling are only
+  findable against a scratch project that does — run it after touching
+  anything under `gates/`.
 - Two rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority) and `ambiguity.md` (never invent past a spec gap).
   These govern devseed and are deliberately **not** shipped in the plugin.
@@ -96,6 +100,7 @@ DESIGN.md                          constitution (§5, §6 are placeholders)
 CLAUDE.md                          this file
 DECISIONS.md                       ADR log + spec gaps observed
 TASKS.md                           backlog, one task per commit
+scripts/gate-regression.sh         asserts gate behaviour; devseed-only
 README.md                          one line; not yet written
 .gitignore
 plugins/governed-dev/              THE PLUGIN — everything below ships

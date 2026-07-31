@@ -182,6 +182,10 @@ These are deliberate, and stated so they are not mistaken for coverage:
   would otherwise match it. A marker parked in prose is not caught.
 - **Check 4 keys on `src/`.** Projects that put code elsewhere are not covered
   until the path is made configurable.
+- **Generated artifacts are invisible to the gate**, filtered unconditionally
+  rather than via the consumer's `.gitignore` (ADR-0005). A project that
+  legitimately tracks a directory named `build/` or `dist/` will not have
+  changes there seen by checks 4 or 6.
 
 ## 6. Amendment procedure
 

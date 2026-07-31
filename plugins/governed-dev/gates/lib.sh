@@ -35,9 +35,17 @@ require_git() {
 "$ROOT is not a git repository, so changed files cannot be determined. Run 'git init' here, or point CLAUDE_PROJECT_DIR at the real project root."
 }
 
-# Everything changed since the last commit: staged, unstaged, and untracked.
+# Generated artifacts, excluded unconditionally -- NOT via the consumer's
+# .gitignore. The gate runs checks that themselves produce artifacts (pytest
+# writes __pycache__ before check 4 inspects the tree), so a gate that trusted
+# the consumer to have configured .gitignore would fail itself on a clean tree.
+# See ADR-0005.
+_GATE_ARTIFACTS='(^|/)(__pycache__|\.pytest_cache|\.ruff_cache|\.mypy_cache|node_modules|dist|build|htmlcov|\.nyc_output)/|\.pyc$|(^|/)(\.coverage|coverage\.xml|\.coverage\..*)$'
+
+# Everything changed since the last commit: staged, unstaged, and untracked,
+# minus generated artifacts.
 changed_files() {
   { git diff HEAD --name-only 2>/dev/null
     git ls-files --others --exclude-standard 2>/dev/null
-  } | sort -u
+  } | grep -Ev "$_GATE_ARTIFACTS" | sort -u
 }
