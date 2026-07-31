@@ -118,7 +118,7 @@ deferred — it is out of scope.
 | Amendment procedure — how DESIGN.md changes | **§6 of this document**, filled in by Prompt 9. Placeholder until then. |
 | `CLAUDE.md` contents | Written once there is state worth describing. Currently the only state is this scaffold. |
 | `DECISIONS.md` structure beyond "Spec gaps observed" | `DECISIONS.md` itself, at first real entry. `ambiguity.md` already fixes the one section that must exist. |
-| Contents of `agents/` and `skills/` | Added when a repeated procedure actually recurs. Speculative agents are unsanctioned constraints wearing a different hat. |
+| **Speculative** agents and skills | Added when a repeated procedure actually recurs. Speculative agents are unsanctioned constraints wearing a different hat. This does **not** defer the boundary-enforced roster in T-007 — tool boundaries are mechanism, not personas. See ADR-0007. |
 | Distribution mechanism — how a consumer obtains devseed | `DECISIONS.md` at first adoption. Copy-the-directory works and needs no decision until it does not. |
 | Whether rules generalize beyond `precedence` and `ambiguity` | New file in `.claude/rules/`, one concern per file, once a third distinct concern is identified. |
 

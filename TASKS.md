@@ -85,13 +85,31 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   prompt series; criteria to be written before work starts.
 - **Status:** todo
 
-## T-007 — Scribe agent
+## T-007 — Agent roster with enforced tool boundaries
 
-- **Description:** Build the scribe agent at
-  `plugins/governed-dev/agents/`, which writes DECISIONS.md entries so future
-  ADRs are not hand-written.
-- **Acceptance:** Agent exists with a bounded scope; appends ADRs in the format
-  defined in DECISIONS.md; never rewrites or deletes existing entries.
+- **Description:** Build all five agents under `plugins/governed-dev/agents/`:
+  **spec-guardian**, **implementer**, **reviewer**, **scribe**, **auditor**.
+  The roster is not the point — the tool boundaries are. An agent that hits a
+  spec wall must not be able to write itself permission. See ADR-0007.
+- **Boundaries** (each agent declares an explicit `tools:` allowlist):
+  - `spec-guardian` — read-only (`Read`, `Grep`, `Glob`). Judges whether a
+    change is sanctioned by DESIGN.md. No write tools at all.
+  - `implementer` — `Read`, `Write`, `Edit`, `Bash`, `Grep`, `Glob`, but
+    **denied write access to `DESIGN.md`, `DECISIONS.md`, and `TASKS.md`**.
+    This is the load-bearing boundary.
+  - `reviewer` — read-only plus `Bash` to run the gate. No write tools.
+  - `scribe` — `Read`, `Edit`, `Write` scoped to `DECISIONS.md`, `TASKS.md`,
+    `CLAUDE.md`. No code, no `Bash`.
+  - `auditor` — read-only plus `Bash`. Reports drift; fixes nothing.
+- **Acceptance:** Each agent file declares its `tools:` allowlist explicitly.
+  The implementer boundary is demonstrated by **observed denial** — an
+  implementer run that attempts to write `DECISIONS.md` is blocked — not by a
+  declared intention in its prompt. `claude plugin details governed-dev`
+  reports five agents.
+- **Blocked on:** T-005. `tools:` gates which tools an agent has, not which
+  files it may touch, so the path boundary needs a `PreToolUse` deny hook.
+  Until that exists the boundary is documentation, and CLAUDE.md must not
+  describe it as enforced.
 - **Status:** todo (Prompt 6)
 
 ## T-008 — Bootstrap skill
@@ -171,4 +189,16 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** `scripts/gate-regression.sh` asserts a real hash is accepted,
   `deadbee` is rejected, and a done task with no hash is rejected; devseed's own
   gate still exits 0 with every recorded hash resolving.
+- **Status:** done
+- **Commit:** `96fab56`
+
+## T-016 — Restore the agent roster and record the §4 tension
+
+- **Description:** T-007 had collapsed from five agents to the scribe alone,
+  dropping the tool boundaries that make the roster mean anything. Expand it,
+  and record why §4's "no speculative agents" deferral does not cover boundary
+  enforcement.
+- **Acceptance:** T-007 names all five agents with per-agent `tools:`
+  allowlists and an observable-denial acceptance criterion; §4's deferred entry
+  is narrowed to speculative agents; ADR-0007 records the rejected alternatives.
 - **Status:** in-progress — hash recorded next commit
