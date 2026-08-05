@@ -167,7 +167,41 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   carrying an `agent_type`, i.e. real subagents. The main session thread is
   unbounded, per **SG-0005**. Until the agents exist the boundaries have nothing
   to bind, and CLAUDE.md must not describe them as enforced.
-- **Status:** todo (Prompt 6)
+- **Status:** in-progress — hash recorded next commit
+- **Built:** five agents at `plugins/governed-dev/agents/`, each declaring
+  `tools:` explicitly, plus [`.claude/rules/delegation.md`](.claude/rules/delegation.md)
+  describing the loop and naming its one rule — the agent that makes a decision
+  never writes the record justifying it. Mirrored to `.claude/agents/` so
+  devseed can run its own roster (ADR-0014).
+- **Deviation from this task's own text:** `scribe` holds `Read, Edit` — **no
+  `Write`**, where the criteria above said "`Read`, `Edit`, `Write` scoped".
+  Prompt 6 specified `Read, Edit`, and the narrower list is also better: with no
+  `Write` the scribe cannot create files at all, so its boundary is enforced by
+  capability rather than only by path.
+- **The Bash seam, resolved (ADR-0013).** `boundary.sh` watched
+  `Edit|Write|NotebookEdit` while the implementer held `Bash`, so
+  `echo x >> DECISIONS.md` was never a tool it inspected — the load-bearing
+  denial held for three tools and was absent for a fourth reaching the same
+  files. The suggested alternative, a scoped `Bash(pytest:*)` in `tools:`,
+  **does not exist**: that syntax is `permissions.allow` in settings.json and is
+  session-scoped, and `permissionMode`/`hooks` frontmatter is ignored for plugin
+  subagents. So the hook was extended to inspect `.tool_input.command`, and the
+  `PreToolUse` matcher gained `Bash|PowerShell` in both wirings.
+- **Verified:** 73 assertions in `scripts/boundary-regression.sh`, plus both
+  acceptance cases run live against a real session:
+  - the implementer was **denied** writing `DECISIONS.md`, with the message
+    naming the scribe; the file was byte-identical afterward and the agent
+    stopped rather than routing around;
+  - the **full loop ran on a real task** (`.gitattributes` for `*.sh`) — all
+    five agents, producing ADR-0015 and SG-0008. The loop corrected the premise
+    it was given: Git Bash tolerates a trailing CR, so the defect is narrower
+    than stated, and the ADR records the corrected reason. The auditor
+    independently caught `CLAUDE.md` staleness this task then fixed.
+- **Not verified:** `claude plugin details governed-dev` still reports
+  `Agents (0)`. The installed copy is pinned at `70542ef` (ADR-0011); this
+  criterion needs a push and a plugin update, not a code change.
+- **SG-0007 opened:** the shipped agents cite `.claude/rules/*` files that do
+  not ship. T-008 forces the answer.
 
 ## T-008 — Bootstrap skill
 
@@ -177,6 +211,9 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   prose; installs namespaced as `/governed-dev:bootstrap`; verified against a
   project outside this repo.
 - **Status:** todo (Prompt 7)
+- **Note:** whether the seeded project also gets a `.gitattributes` (so a
+  Windows-bootstrapped `gate.sh` doesn't reproduce the CRLF defect ADR-0015
+  closed in devseed) is open — see SG-0008.
 
 ## T-009 — CI parity
 

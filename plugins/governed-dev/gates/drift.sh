@@ -20,8 +20,9 @@
 #                  in DECISIONS.md; every done task cites a commit that exists.
 #   5 superseded   ADR numbers are contiguous, and no ADR or spec gap that ever
 #                  existed in git history has been deleted.
-#   6 hook parity  where a project mirrors hooks.json into .claude/settings.json,
-#                  the two must agree on events, matchers and async flags.
+#   6 mirror parity where a project mirrors hooks.json into .claude/settings.json,
+#                  the two must agree on events, matchers and async flags; and the
+#                  agent roster mirror must match the shipped one byte for byte.
 #
 # SELF-UPDATING BY CONSTRUCTION. Check 1 re-reads DESIGN.md at runtime and
 # derives its canaries from whatever the rules sections currently say. Editing
@@ -554,6 +555,46 @@ $d" \
 "bring $MIRROR back into line with $SHIPPED, which is the source of truth. Only the event set, matchers, script names and async flags are compared -- the command paths differ on purpose, since the mirror points at the working tree and the shipped file at the installed plugin."
 }
 
+# The agent roster is mirrored for the same reason the hook wiring is: an
+# installed plugin pins to a commit SHA and goes stale, so devseed cannot
+# dogfood a roster it only ships (ADR-0011, ADR-0014). Unlike the hook wiring,
+# these files carry no path differences at all, so the test is exact equality --
+# any difference is drift, with no legitimate variation to allow for.
+#
+# Self-disabling in the same way: a consumer has no plugins/governed-dev/agents/
+# and so is not checked.
+AGENTS_SHIPPED="${DRIFT_AGENTS_SHIPPED:-plugins/governed-dev/agents}"
+AGENTS_MIRROR="${DRIFT_AGENTS_MIRROR:-.claude/agents}"
+
+check_agent_parity() {
+  [ -d "$AGENTS_SHIPPED" ] || return 0
+  [ -d "$AGENTS_MIRROR" ] || return 0
+
+  local f base
+  for f in "$AGENTS_SHIPPED"/*.md; do
+    [ -e "$f" ] || continue
+    base="${f##*/}"
+    if [ ! -f "$AGENTS_MIRROR/$base" ]; then
+      drift "$AGENTS_MIRROR/$base" \
+"agent \`$base\` ships in $AGENTS_SHIPPED but is missing from the $AGENTS_MIRROR mirror." \
+"copy it: cp $f $AGENTS_MIRROR/. devseed loads its roster from the mirror, so an agent that exists only in the plugin is one devseed itself never runs -- and an unrun boundary is an unverified one."
+    elif ! cmp -s "$f" "$AGENTS_MIRROR/$base"; then
+      drift "$AGENTS_MIRROR/$base" \
+"agent \`$base\` differs between $AGENTS_SHIPPED and the $AGENTS_MIRROR mirror." \
+"re-copy from the shipped file, which is the source of truth: cp $f $AGENTS_MIRROR/. These two must be byte-identical -- unlike the hook wiring there is no path difference to justify any divergence, so what devseed runs would otherwise stop matching what it ships."
+    fi
+  done
+
+  for f in "$AGENTS_MIRROR"/*.md; do
+    [ -e "$f" ] || continue
+    base="${f##*/}"
+    [ -f "$AGENTS_SHIPPED/$base" ] && continue
+    drift "$f" \
+"agent \`$base\` exists in the $AGENTS_MIRROR mirror but not in $AGENTS_SHIPPED." \
+"delete it, or move it into $AGENTS_SHIPPED so it ships. An agent devseed runs but does not ship is a boundary its consumers do not get, tested only here."
+  done
+}
+
 # ---------------------------------------------------------------------------
 
 check_duplication
@@ -562,6 +603,7 @@ check_budget
 check_orphans
 check_superseded
 check_hook_parity
+check_agent_parity
 
 if [ "$FOUND" -gt 0 ]; then
   printf '\nGATE FAIL [%s]: %d drift finding(s) above. The documents and the repository disagree.\n' \

@@ -1,0 +1,6 @@
+# Shell scripts are checked out with LF on every platform.
+#
+# core.autocrlf=true on Windows would otherwise land every script CRLF. Git
+# Bash tolerates that -- it is patched to ignore a trailing CR -- but WSL bash,
+# dash/sh, and Linux CI reading a Windows-authored tree do not.
+*.sh text eol=lf

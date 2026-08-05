@@ -65,9 +65,24 @@ plugin installed into other projects. See ADR-0001.
   [`.claude/settings.json`](.claude/settings.json) (ADR-0011); consumers get
   them from the plugin. Local mechanics and what bites:
   [`hooks/README.md`](plugins/governed-dev/hooks/README.md).
-- Two rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
-  (document authority) and `ambiguity.md` (never invent past a spec gap).
-  These govern devseed and are deliberately **not** shipped in the plugin.
+- **The agent roster**, five agents at `plugins/governed-dev/agents/`:
+  spec-guardian gates in, implementer builds, reviewer gates out, scribe
+  records, auditor runs continuously. Every one declares `tools:` explicitly —
+  omitting it inherits everything and silently deletes the boundary. The rule
+  holding it together: the agent that makes a decision never writes the record
+  justifying it. Loop and per-agent boundaries:
+  [`.claude/rules/delegation.md`](.claude/rules/delegation.md).
+  Mirrored to `.claude/agents/` so devseed can run its own roster (ADR-0014);
+  drift check 6 enforces the two byte-identical.
+- **The boundary's own regression:** `bash scripts/boundary-regression.sh`.
+  73 synthetic `PreToolUse` events. Every defect found in that hook so far was
+  invisible to inspection — run it after touching `boundary.sh` or any
+  `tools:` list.
+- Four rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
+  (document authority), `ambiguity.md` (never invent past a spec gap),
+  `ledger.md` (which document owns which fact), `delegation.md` (the agent
+  loop). These govern devseed and are deliberately **not** shipped — which
+  the shipped agents cite anyway, open as SG-0007.
 - Plugin/marketplace manifests. `claude plugin validate .` passes with one
   warning: `version` is intentionally omitted from `plugin.json`, so the
   installed version resolves to the commit SHA. `--strict` fails on that
@@ -81,10 +96,14 @@ plugin installed into other projects. See ADR-0001.
 
 **Not built yet:**
 
-- `plugins/governed-dev/agents/` and `skills/` are empty (T-007, T-008). The
-  boundaries in `hooks/boundary.sh` therefore have no agents to bind yet, and
-  bind only real subagents when they exist — the main session thread carries no
-  `agent_type` and is unbounded (SG-0005).
+- `plugins/governed-dev/skills/` is empty (T-008). The roster now exists, so
+  `hooks/boundary.sh` has real agents to bind — but it binds **only real
+  subagents**: the main session thread carries no `agent_type` and is unbounded
+  (SG-0005). Most work happens on the main thread, so most work is unbounded.
+- The shell half of the boundary is **syntactic** and stops the expedient
+  redirect, not a determined evasion through a variable or glob (ADR-0013).
+  What carries the weight is the capability boundary — the scribe and
+  spec-guardian hold no shell at all.
 - Nothing else. `jq` is installed (1.8.2) and `lib.sh` locates it even when it
   is off `PATH`, which it is here — winget's Links directory only reaches
   processes started after the install.
@@ -121,20 +140,29 @@ plugin installed into other projects. See ADR-0001.
   activity.jsonl                   append-only audit log (committed; ADR-0003)
   in-flight.md                     PreCompact handoff note (ignored; ADR-0009)
   .hook-state/                     per-session hook scratch (ignored)
+  agents/                          MIRROR of the shipped roster (ADR-0014)
   rules/
     precedence.md                  DESIGN.md vs CLAUDE.md authority
     ambiguity.md                   spec gaps: ask or record, never invent
     ledger.md                      which document owns which information
+    delegation.md                  the agent loop; deciders never record
 DESIGN.md                          constitution (§5, §6 are placeholders)
 CLAUDE.md                          this file
 DECISIONS.md                       ADR log + spec gaps observed
 TASKS.md                           backlog, one task per commit
 scripts/gate-regression.sh         asserts gate behaviour; devseed-only
+scripts/boundary-regression.sh     asserts boundary.sh denials; devseed-only
 README.md                          one line; not yet written
 .gitignore
+.gitattributes                     forces LF for *.sh on checkout (ADR-0015)
 plugins/governed-dev/              THE PLUGIN — everything below ships
   .claude-plugin/plugin.json       no "version" key, deliberately
-  agents/                          empty — Prompt 6 adds the scribe
+  agents/                          THE ROSTER — tools: is the enforcement
+    spec-guardian.md               gates in; SANCTIONED/GAP/CONFLICT
+    implementer.md                 builds, test-first; denied the 3 ledgers
+    reviewer.md                    gates out; NO FINDINGS is a real result
+    scribe.md                      records only; no Write, no shell
+    auditor.md                     runs the guards; proposes nothing
   skills/                          empty — Prompt 7 adds bootstrap
   gates/                           THE GATE — definition of "done"
     gate.sh                        orchestrator; --fast = checks 1-3

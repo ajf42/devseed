@@ -818,6 +818,245 @@ only for hook parity, and only where the mirrored pair exists.
 
 ---
 
+## ADR-0013 — The shell is a write vector; the boundary inspects commands, not just paths
+
+- **Date:** 2026-08-05
+- **Status:** Accepted
+
+### Context
+
+`boundary.sh` was wired at `PreToolUse` with the matcher
+`Edit|Write|NotebookEdit`. The implementer's `tools:` allowlist includes `Bash`.
+
+Those two facts do not compose. The hook reads `.tool_input.file_path`, which a
+`Bash` call does not carry, so the boundary evaluated an empty path, matched
+none of its ledger patterns, and **allowed**. `echo x >> DECISIONS.md` was never
+a tool it watched. The load-bearing denial in ADR-0007 — the implementer cannot
+write `DECISIONS.md` — held for three tools and was absent for a fourth that
+reaches the same files.
+
+This was not a bug in the sense of a mistake in logic. It is what happens when a
+`tools:` list and a hook matcher are written at different times by different
+reasoning, and nothing forces them to be checked against each other. Recorded
+here rather than fixed quietly because the class matters more than the instance.
+
+**Alternatives considered:**
+
+- **Drop `Bash` from the implementer and grant a narrower `Bash(pytest:*)`.**
+  **Not available.** This was the preferred option on inspection, and it does
+  not exist. The `tools:` frontmatter field accepts exact tool names,
+  `mcp__<server>` patterns, and `Agent(<type>)`; the parenthesised scoping
+  syntax is documented only for `Agent`, and only for an agent running as the
+  main thread. `Bash(pytest:*)` is `permissions.allow` syntax from
+  `settings.json`, which is session-scoped rather than agent-scoped. There is no
+  per-agent `permissions` field. `permissionMode` exists but is a mode, not a
+  rule list, and is **ignored for plugin subagents** — which these are, along
+  with the per-agent `hooks` and `mcpServers` fields. Verified against the
+  subagent reference on 2026-08-05.
+- **Drop `Bash` from the implementer entirely.** Rejected: the implementer's
+  defining discipline is writing a failing test and *confirming it fails for the
+  right reason*, which requires running it. An implementer that cannot execute
+  anything cannot do test-first work, and would have to report results it never
+  observed — trading a governance hole for a much worse honesty hole.
+- **Parse the command and deny only writes into ledger paths.** Rejected as the
+  primary test, in favour of the broader one below. Deciding which token in a
+  shell command is a redirect target means reasoning about quoting, `eval`,
+  heredocs, and command substitution. Every way of getting that wrong fails
+  *open*, and a boundary that fails open is not a boundary.
+- **Accept the hole and document it.** Rejected. ADR-0007 states that until the
+  hook exists the boundary is documentation and `CLAUDE.md` must not describe it
+  as enforced. A boundary enforced for three tools out of four is worse than a
+  known-absent one: it reads as complete.
+
+### Decision
+
+`boundary.sh` inspects `.tool_input.command` and the `PreToolUse` matcher gains
+`Bash|PowerShell`, in both `hooks.json` and the `.claude/settings.json` mirror.
+
+Two predicates, deliberately blunt:
+
+- **The implementer** is denied any shell command that *names* `DESIGN.md`,
+  `DECISIONS.md` or `TASKS.md` — not merely one that writes to them. It holds
+  `Read` and `Grep` for looking at those files, so over-blocking the shell costs
+  it nothing it needs, and "names it" is a predicate that can be evaluated
+  correctly where "writes to it" cannot.
+- **The read-only agents** (spec-guardian, reviewer, auditor) are denied any
+  command containing a shell-level write construct: a redirect other than to
+  `/dev/null`, the usual file-mutating commands, or a state-changing `git`
+  subcommand.
+
+`PowerShell` is matched although no agent is granted it, because it is in the
+built-in set a background subagent retains and a future roster change could
+grant it without anyone revisiting this hook.
+
+### Consequences
+
+- **The shell check is syntactic and stops the expedient route, not a determined
+  one.** `D=DECI; echo x >> ${D}SIONS.md` defeats it, as does any indirection
+  through a variable, a glob, or a program's own file handling. This is stated
+  in the hook, in `delegation.md`, and here, because a partial mitigation
+  presented as complete is the failure mode this repository exists to prevent.
+  The threat model ADR-0007 names is the agent that takes the cheap way out of a
+  spec wall, not an adversary.
+- **The capability boundary carries the weight the syntactic one cannot.** The
+  scribe and spec-guardian hold no shell at all. That is not a matcher and
+  cannot be outwitted, and it is why their `tools:` lists matter more than any
+  hook.
+- **Read-only agents lose benign shell writes.** An auditor cannot write a
+  report to a file, and a reviewer cannot `git stash` to test a revert. Accepted:
+  both return prose, and the alternative is a carve-out that has to be right
+  about which writes are benign.
+- **False positives are possible and are denials, not silent passes.** A `>` in
+  a quoted string or a filename containing `TASKS.md` will block. Erring closed
+  at an enforcement point is the correct direction, and the deny message names
+  the command so the agent can rephrase.
+- **The `PreToolUse` matcher now differs from `PostToolUse`'s**, which stays
+  `Edit|Write|NotebookEdit` — the fast gate should not run on every shell
+  command. Drift check 6 compares the two wirings against each other, not the
+  two events, so this asymmetry is intentional and unguarded.
+- **This coupling has no guard.** Nothing checks that an agent's `tools:` list
+  and `boundary.sh` agree about which tools can write. The next tool granted to
+  an agent could reopen exactly this hole, and the only thing standing in the
+  way is the `*)` branch denying agents the hook does not recognise — which does
+  not help when the agent *is* recognised and the tool is not. Recorded as a
+  known gap rather than solved here.
+
+---
+
+## ADR-0014 — devseed mirrors the agent roster into `.claude/agents/`, and the guard enforces byte equality
+
+- **Date:** 2026-08-05
+- **Status:** Accepted
+
+### Context
+
+The roster is built under `plugins/governed-dev/agents/` per ADR-0001's path
+rule, so it ships. But Claude Code discovers project subagents in
+`.claude/agents/`, and reaches a plugin's agents only through an *installed*
+plugin — which, per ADR-0011, is pinned to a commit SHA and stale by default.
+The copy on this machine sits at `70542ef`, long before any agent existed.
+
+So devseed could ship a roster it could never run. T-007's acceptance is an
+**observed denial**, which cannot be observed against agents that do not load.
+This is ADR-0011's problem exactly, one artifact later.
+
+**Alternatives considered:**
+
+- **Symlink `.claude/agents` at `plugins/governed-dev/agents`.** Rejected: one
+  copy and no drift, which is the appealing part, but git symlinks on Windows
+  require `core.symlinks` and developer mode or admin rights, and check out as
+  plain text files containing a path when they are unavailable. That failure is
+  silent — the roster would simply not load, which is the same invisible
+  non-enforcement this ADR exists to prevent.
+- **Install the plugin from a local path so the agents load from it.**
+  Rejected for the reason ADR-0011 gives: it was not reachable from the
+  documented `marketplace add` / `install` flow, and inventing an install mode
+  to suit one repository is a larger change than a copy.
+- **Skip the live test and rely on the synthetic harness.**
+  `scripts/boundary-regression.sh` already proves the hook's logic across 73
+  cases without an agent running. Rejected as *sufficient*: it proves
+  `boundary.sh` decides correctly given an event, not that the harness delivers
+  the event — the matcher, the `agent_type` field, and the plugin namespacing
+  are all untested by it. T-005 found three defects of exactly that kind, none
+  visible to inspection.
+- **Copy without a guard.** Rejected: an unguarded copy is the drift devseed
+  exists to eliminate, and it would diverge the first time an agent was edited
+  in one place.
+
+### Decision
+
+Mirror the five agent files into `.claude/agents/`, and extend the drift guard's
+check 6 to compare the two directories. The test is **exact byte equality** in
+both directions: every shipped agent present in the mirror and identical, and no
+agent in the mirror that does not ship.
+
+Byte equality, rather than the field-level comparison used for the hook wiring,
+because these files carry no legitimate difference. The hook mirror compares
+only events, matchers and flags precisely because its command paths *must*
+differ; agent definitions have no such axis, so any difference at all is drift.
+
+### Consequences
+
+- **`plugins/governed-dev/agents/` is the source of truth.** Edit there, then
+  re-copy. Editing the mirror and letting the guard complain also works, but
+  gets the direction backwards and the fix text says so.
+- **Two more copies of five files exist in the repository.** Accepted because
+  the guard makes the duplication self-correcting: it fails the gate rather
+  than drifting quietly, which is the standard this repository holds every other
+  duplication to.
+- **A consumer is unaffected.** The check is self-disabling — no
+  `plugins/governed-dev/agents/` means nothing to compare — and consumers get
+  the roster through the plugin, which is the path that works for them.
+- **This is the second artifact to need the ADR-0011 workaround**, after the
+  hook wiring. A third would be evidence the pinned-install problem needs
+  solving at its root rather than mirrored again per artifact.
+
+---
+
+## ADR-0015 — Normalize `*.sh` to LF via `.gitattributes`, regardless of local `core.autocrlf`
+
+- **Date:** 2026-08-05
+- **Status:** Accepted
+
+### Context
+
+On Windows, `core.autocrlf=true` lands every tracked script CRLF at checkout.
+Git for Windows patches its own `bash` to ignore a trailing CR, so a CRLF
+script still runs there — confirmed directly: `drift.sh` running CRLF under
+gate check 7 passed with the gate exiting 0. That tolerance is specific to
+Git Bash. WSL bash, `dash`/`sh`, and Linux CI reading a Windows-authored tree
+do not ignore the trailing CR, and the repository currently ships CRLF to all
+of them the moment a Windows contributor without `core.autocrlf=input` clones
+and commits.
+
+The change was sanctioned under DESIGN.md §4 ("whatever it takes to copy this
+scaffold into a new repo and have it work") and §3's platform row (bash / Git
+Bash as a stated Windows prerequisite), on the premise that a CRLF script is a
+form Git Bash itself cannot execute. That premise was tested directly and
+**disproved** — Git Bash tolerates it fine. The defect is real but narrower
+than first stated: it is a cross-platform and CI problem, not a Windows-shell
+problem. The sanction still holds under the same two clauses, for the
+corrected reason.
+
+**Alternatives considered:**
+
+- **`core.autocrlf=input` as local git config.** Rejected: config is
+  per-clone and not versioned. It protects only a contributor who remembers to
+  set it and does not travel with a fresh clone, which is the exact failure
+  this change exists to close.
+- **A broader `.gitattributes` covering more filetypes.** Rejected as out of
+  scope for this change: spec-guardian's sanction covered `*.sh` specifically
+  and did not pre-clear a general normalization policy. Extending coverage to
+  other extensions would need its own ruling.
+- **Do nothing.** Rejected: it is the status quo that produced the defect —
+  a Windows checkout can silently commit CRLF scripts that fail wherever the
+  tolerance Git Bash grants does not extend, with no signal until something
+  else reads the tree.
+
+### Decision
+
+Add root `.gitattributes` with one rule: `*.sh text eol=lf`. All 20 tracked
+shebang-bearing scripts in the repository are `*.sh`, so the single rule has
+full coverage with no gap.
+
+### Consequences
+
+- Every clone, regardless of local `core.autocrlf`, checks out `*.sh` as LF.
+  What this closes is specifically WSL bash, `dash`/`sh`, and Linux CI reading
+  a Windows-authored tree — not Git Bash on Windows, which already tolerated
+  CRLF and was never actually broken by it.
+- The index was already LF and none of the 20 tracked blobs contained a CR, so
+  landing the rule required no `git add --renormalize` and changed no file
+  content.
+- Coverage is scoped to `*.sh` only, matching the sanction that was actually
+  granted. `plugins/governed-dev/templates/` — which seeds a consumer's own
+  repository, including its `gate.sh` — has no equivalent protection yet.
+  Recorded as its own open question rather than folded into this decision,
+  since extending scope to what ships to consumers needs its own ruling. See
+  SG-0008.
+
+---
+
 ## Spec gaps observed
 
 Assumptions made where the spec was silent, per
@@ -1023,3 +1262,72 @@ form — at the cost of quoting every path placeholder by hand.
 Git Bash is installed but not on `PATH`. If the answer is that it must, this
 should flip to shell form with quoted placeholders and ADR-0006 should gain the
 `PATH` requirement explicitly.
+
+### SG-0007 — The shipped agents cite rule files that do not ship
+
+- **Date:** 2026-08-05
+- **Status:** Open — needs human decision
+
+The five agents under `plugins/governed-dev/agents/` ship to consumer projects.
+Their system prompts cite `.claude/rules/ambiguity.md`, `.claude/rules/precedence.md`
+and `.claude/rules/delegation.md` by path. Those files **do not ship** —
+`CLAUDE.md` records that `.claude/rules/` governs devseed and is deliberately
+excluded from the plugin, and the path rule keeps `delegation.md` at the repo
+root alongside them.
+
+So in a consumer project the agents will reference documents that are not there.
+The instructions still read as sensible prose, which is the problem: nothing
+fails, and the reader is pointed at a file they cannot open.
+
+`ledger.md` already noticed the general form of this — "Whether a ledger rule
+should ship to consumers is undecided — it is not a gap this rule may close on
+its own" — but T-007 is the first work that makes it bite, because the agents
+are the first shipped artifact that cites the rules.
+
+**Assumed:** `delegation.md` goes to `.claude/rules/` as the prompt specifies
+and the path rule requires, and the dangling references ship with it. Chosen
+over the alternatives because both of those close the gap by fiat: copying the
+rules into `templates/` decides that rules ship, and rewriting the agent prompts
+to drop the citations decides that they do not. Either may be right; neither is
+this task's to settle.
+
+**Depends on this:** whether the shipped roster is usable as delivered. Three
+options, all real:
+
+- Ship the rules — copy `ambiguity.md`, `precedence.md` and `delegation.md` into
+  `plugins/governed-dev/templates/rules/`, and have the bootstrap skill (T-008)
+  install them. Makes the citations resolve; grows what a consumer must adopt.
+- Inline the substance into each agent's prompt and drop the citations. Makes
+  the agents self-contained; duplicates text that will drift, which is exactly
+  what drift check 1 exists to catch.
+- Ship the roster knowing the references dangle, and say so in the plugin README.
+
+T-008 (bootstrap) forces the answer, since it decides what a consumer receives.
+
+### SG-0008 — Whether `plugins/governed-dev/templates/` should ship a `.gitattributes`
+
+- **Date:** 2026-08-05
+- **Status:** Open — needs human decision
+
+ADR-0015 added root `.gitattributes` normalizing `*.sh` to LF, scoped to
+devseed's own repository under DESIGN.md §4's "whatever it takes to copy this
+scaffold into a new repo and have it work." `plugins/governed-dev/templates/`
+already ships `.gitignore` for the equivalent repo-hygiene reason (ADR-0005),
+but ships no `.gitattributes`. The bootstrap skill (T-008) seeds a consumer
+project from `templates/`, including `gate.sh`. A consumer bootstrapping on
+Windows with `core.autocrlf=true` commits `gate.sh` at LF; their next checkout
+lands it CRLF with nothing to stop it — the same defect ADR-0015 closed in
+devseed, reproduced one repository over.
+
+This was deliberately not fixed alongside ADR-0015: spec-guardian's sanction
+covered devseed's own root, and extending a normalization policy to what ships
+to every consumer is a separate decision that was never asked.
+
+**Assumed:** nothing. Left unresolved rather than either adding
+`templates/.gitattributes` (which decides consumers get it) or declaring the
+gap out of scope (which decides they don't).
+
+**Depends on this:** T-008 (bootstrap) needs to know whether to copy a
+`.gitattributes` into the target project. It also interacts with **SG-0003** —
+whether consumers vendor their own `gate.sh` at all — since if they do not,
+the same CRLF-on-checkout question may not arise the same way.
