@@ -198,9 +198,11 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
     it was given: Git Bash tolerates a trailing CR, so the defect is narrower
     than stated, and the ADR records the corrected reason. The auditor
     independently caught `CLAUDE.md` staleness this task then fixed.
-- **Not verified:** `claude plugin details governed-dev` still reports
-  `Agents (0)`. The installed copy is pinned at `70542ef` (ADR-0011); this
-  criterion needs a push and a plugin update, not a code change.
+- **Plugin inventory verified** after pushing and running `plugin update`
+  (`70542ef38e36` → `f8c9ed95fa11`): `claude plugin details` reports
+  `Agents (5)` — auditor, implementer, reviewer, scribe, spec-guardian — and
+  `Hooks (8)`. `claude plugin validate .` passes with the one intended
+  `version` warning.
 - **SG-0007 opened:** the shipped agents cite `.claude/rules/*` files that do
   not ship. T-008 forces the answer.
 

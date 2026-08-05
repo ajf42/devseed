@@ -127,9 +127,11 @@ plugin installed into other projects. See ADR-0001.
    `/bootstrap`. A "missing" skill is usually this.
 3. **An installed plugin is pinned to a commit SHA and goes stale silently.**
    `plugin.json` omits `version` by design (ADR-0001), so `install` resolves to
-   the SHA at install time and never moves. The copy on this machine sits at
-   `70542ef`, before the gate existed. This is why devseed wires its own hooks
-   from the working tree rather than through the plugin (ADR-0011).
+   the SHA at install time and never moves. The copy on this machine was
+   pinned at `70542ef` — before the gate existed — until `plugin update` moved
+   it to `f8c9ed9` on 2026-08-05. It will go stale again the same way. This is
+   why devseed wires its own hooks, and mirrors its own roster, from the working
+   tree rather than through the plugin (ADR-0011, ADR-0014).
 
 ## File structure as it stands
 
