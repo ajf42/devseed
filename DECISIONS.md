@@ -453,6 +453,287 @@ denial rather than as a declared intention.
 
 ---
 
+## ADR-0008 — The Stop gate releases after three consecutive blocks
+
+- **Date:** 2026-07-31
+- **Status:** Accepted
+
+### Context
+
+The `Stop` hook runs the full gate and blocks the turn from ending when it
+fails. That is the load-bearing mechanism of the whole scaffold — the executable
+form of "do not consider a task complete until all steps are done".
+
+It also has no natural exit. Earlier versions of the hooks API passed a
+`stop_hook_active` flag so a Stop hook could tell it was already the reason the
+session was continuing. **Today's API has no such field** — verified against the
+published reference on 2026-07-31, which documents no loop-prevention mechanism
+for `Stop` at all. So a gate failure the agent cannot fix — a missing toolchain,
+a spec question only the human can settle — produces an unbounded loop: block,
+attempt, block, attempt, with no way out but killing the session.
+
+**Alternatives considered:**
+
+- **Block unconditionally, forever.** Rejected. It is the purest reading of "no
+  silent degradation", but the failure it produces is not loud, it is *stuck* —
+  and a tool that can wedge a session teaches its user to disable it. A gate
+  that gets switched off enforces nothing, which is a worse outcome than a gate
+  that escalates.
+- **Track the flag ourselves from the transcript.** Rejected: it means parsing
+  `transcript_path` to infer whether the last stop was hook-induced, which
+  couples the hook to an undocumented file format that can change without
+  notice, to reconstruct a signal the API no longer offers.
+- **Block only on some checks.** Rejected: it makes "done" negotiable per check,
+  and the gate is deliberately a single verdict. Any subset is a second
+  definition of done that nothing records.
+- **Release after one block.** Rejected: one attempt is not an attempt. Most
+  gate failures are fixable by the agent on the next edit, which is exactly the
+  case the hook exists to catch.
+
+### Decision
+
+`stop-gate.sh` keeps a per-session counter under `.claude/.hook-state/`. It
+blocks on gate failure up to three consecutive times, resetting the counter on
+any pass. On the fourth it stops blocking and instead emits the gate's failure
+plus a `systemMessage` stating that the turn ended **unfinished** and that the
+failure has outlived three attempts and is probably not the agent's to fix.
+
+The release is made at least as loud as the block. The block text tells the
+agent in advance that the counter exists and that a turn ending that way ends
+unfinished, so it can stop and say so rather than burning the attempts.
+
+### Consequences
+
+- A turn *can* end with the gate red. That is a real hole and it is the price of
+  not being able to wedge the session. It is visible in the transcript, in the
+  `systemMessage`, and in `.claude/activity.jsonl`, which records `gate_result`
+  on every session end.
+- `3` is a judgement, not a derived number. If it proves wrong the fix is to
+  change `MAX_BLOCKS` in `stop-gate.sh`, which is the single place it lives.
+- The counter is session-scoped state in the project directory, so the hooks now
+  write to the consumer's tree. The gate still does not — that asymmetry is
+  stated in `hooks/README.md` so it is not read as an erosion of §5's
+  no-side-effects rule.
+- If `stop_hook_active` or an equivalent returns to the API, this counter should
+  be replaced by it, and this entry superseded.
+
+---
+
+## ADR-0009 — The compaction flush writes `.claude/in-flight.md`, not `CLAUDE.md`
+
+- **Date:** 2026-07-31
+- **Status:** Accepted
+
+### Context
+
+The `PreCompact` hook exists because compaction is the most common cause of
+working-memory drift: the session survives, the knowledge of what it was halfway
+through does not, and the agent afterwards reconstructs a plausible substitute.
+The specified behaviour was to append the in-flight state to `CLAUDE.md`'s
+current-state section before that context is lost.
+
+Appending to `CLAUDE.md` breaks two things at once.
+
+**It defeats gate check 4.** Check 4 fails a change when files under `src/`
+changed and `CLAUDE.md` did not. A hook that writes `CLAUDE.md` on every
+compaction satisfies that condition mechanically, with no one having thought
+about what changed. The check keeps reporting green while enforcing nothing —
+silent degradation, in the mechanism built to detect it.
+
+**It breaks the line budget.** `CLAUDE.md` has a hard 300-line ceiling and a
+compression protocol for routing detail elsewhere. A machine appending a
+timestamped block per compaction blows through it, and the protocol explicitly
+forbids committing an over-budget file with a note to clean it later.
+
+**Alternatives considered:**
+
+- **Append to `CLAUDE.md` as specified and accept the check-4 hole.** Rejected:
+  it disables the working-memory check in the name of protecting working memory.
+- **Append to `CLAUDE.md` inside a delimited block, and teach check 4 to ignore
+  changes confined to that block.** Rejected: it works, but it modifies the gate
+  to accommodate a hook. The gate is the authority on what "done" means
+  (DESIGN.md §5); carving an exception into it so a convenience feature can
+  write to a governed document inverts that.
+- **Write nothing and rely on the agent to summarise before compaction.**
+  Rejected: that is the aspirational version this hook replaces. An instruction
+  that fires only when a long session remembers to follow it is unreliable
+  exactly when the session is long enough to need it.
+
+### Decision
+
+`flush.sh` writes to `.claude/in-flight.md` — git-ignored, capped at the four
+most recent snapshots — and never touches `CLAUDE.md`. `orient.sh` reads the
+file back at `SessionStart` and reports its presence as a state disagreement, so
+a compacted session resumes from a record rather than a reconstruction.
+
+The prompt's requirement is met at the level of intent: in-flight state survives
+compaction and reaches the next session. Only the destination changed, and it
+changed to avoid disabling the check that catches the very drift being guarded
+against.
+
+### Consequences
+
+- `CLAUDE.md` remains hand-maintained, which is the point. Check 4 still fails a
+  `src/` change that did not update it.
+- In-flight state is now in a second place. `hooks/README.md` and `CLAUDE.md`'s
+  file-structure block both name it so it is findable; an unnamed file is worse
+  than no file.
+- The snapshot is local: git-ignored, so it does not survive a clone and cannot
+  hand off between machines. That is correct for transient session state and
+  wrong for anything durable — durable records belong in the ledger documents.
+- If the file is ever wanted in review, that is a new decision superseding this
+  one, not an edit to `.gitignore`.
+
+---
+
+## ADR-0010 — Hooks are registered in shell form, not exec form
+
+- **Date:** 2026-07-31
+- **Status:** Accepted
+
+### Context
+
+Hook commands can be written two ways. **Exec form** sets an `args` array and
+spawns the command directly with no shell, so every argument is passed verbatim
+— a project path containing spaces cannot split, and no quoting is needed.
+**Shell form** passes a command string to a shell, which tokenizes it; the
+harness uses Git Bash for this on Windows.
+
+Exec form is the documented recommendation wherever a path placeholder appears,
+and it was what T-005 built first. It does not work here.
+
+Exec form resolves `command` against `PATH`. On this machine Git Bash is
+installed at `C:\Program Files\Git\bin\bash.exe` and `bash` does **not** resolve
+on `PATH` — confirmed by `Get-Command bash` returning nothing. Under exec form
+every hook would fail to spawn: no gate, no boundary, no orientation, and no
+error attributable to any of them. ADR-0006 established Git Bash as a Windows
+prerequisite but said nothing about `PATH`, and the two are not the same claim.
+
+This is the failure mode the whole project is built against. A gate that cannot
+run fails loudly by design; a hook whose command cannot be spawned does not run,
+enforces nothing, and announces nothing.
+
+**Alternatives considered:**
+
+- **Keep exec form and add `C:\Program Files\Git\bin` to `PATH`.** Rejected as
+  the primary fix: it makes correct operation depend on a machine setting no
+  file in the repository can assert, and it fails silently again on the next
+  machine. It remains a fine thing to do, but it cannot be the mechanism.
+- **Keep exec form with an absolute `command` path to `bash.exe`.** Rejected:
+  correct on exactly one machine, broken on every other and on POSIX entirely.
+- **Ship both and let one win.** Rejected: matching hooks are deduplicated by
+  command string, not by intent, so both would run — two gates per turn, and
+  two `Stop` hooks racing to block.
+
+### Decision
+
+Shell form, with `"shell": "bash"` set explicitly and every path placeholder
+wrapped in double quotes. This applies to both `plugins/governed-dev/hooks/`
+`hooks.json` and devseed's own `.claude/settings.json` (ADR-0011).
+
+The quoting recovers what exec form was wanted for: a project path containing
+spaces still cannot split. `"shell": "bash"` keeps the harness from falling back
+to PowerShell on Windows, where these bash scripts would not run.
+
+**Verified live, unintentionally and conclusively.** Immediately after
+`.claude/settings.json` was written in shell form, the `PreToolUse` boundary
+hook fired on the very next `Edit` and blocked it — proving the wiring resolves
+Git Bash without `PATH`, and that the boundary enforces.
+
+### Consequences
+
+- **SG-0006 is resolved by this entry.** The gap asked whether exec form's
+  narrowing of ADR-0006 was acceptable. It was not; the narrowing is gone.
+- A project path containing a `$`, a backtick or an apostrophe can still break
+  shell form where exec form would not have. That is a far rarer condition than
+  "Git Bash is not on `PATH`", and unlike it, it fails visibly.
+- `preflight.sh` lost its bash-on-`PATH` check. Under shell form the condition
+  cannot arise — if the script is running, bash was found — and a check that
+  cannot fail reads as coverage while providing none.
+- `hooks.json` carries this reasoning in `_CONVENTION_SHELL_FORM`, because the
+  next reader's instinct will be to "fix" it back to the documented default.
+
+---
+
+## ADR-0011 — devseed mirrors the hook wiring in its own `.claude/settings.json`
+
+- **Date:** 2026-07-31
+- **Status:** Accepted
+
+### Context
+
+devseed is governed by the tool it produces (ADR-0001). That dogfooding is the
+only ongoing test that the discipline is usable — and for hooks it did not work
+at all.
+
+The hooks ship inside the plugin. devseed gets them only by installing the
+plugin into itself, and **that install is pinned**: `plugin.json` deliberately
+omits `version` (ADR-0001), so an install resolves to a commit SHA and stays
+there. The copy on this machine is pinned at `70542ef38e36`, eleven commits
+behind `HEAD`, with an **empty `gates/` directory** and the zero-hook
+`hooks.json` placeholder. Nothing written under T-004 or T-005 was reachable
+from it.
+
+So the acceptance test for T-005 — break a check, confirm the `Stop` hook blocks
+— could not be run in devseed at all. Neither could any subsequent change to a
+hook be observed without committing, pushing, and explicitly updating first.
+
+This consequence of omitting `version` was not recorded anywhere. ADR-0001 chose
+the omission deliberately and for good reasons, and this entry does not reverse
+it; it records the cost, which is that **an installed plugin is stale by
+default**.
+
+**Alternatives considered:**
+
+- **Publish and update on every change.** Rejected: it reinstates the
+  copy-and-drift loop ADR-0001 removed, one round trip per edit, and makes the
+  fastest feedback in the system the slowest. It also means devseed can only
+  dogfood code it has already published.
+- **Install the plugin from a local path instead of the marketplace.** Not
+  rejected on merit — it may well be the better answer — but it was not
+  reachable from the documented `marketplace add` / `install` flow that
+  `CLAUDE.md` records as the verified loop, and inventing an install mode to
+  suit one repository is a larger change than a settings file.
+- **Give up on dogfooding the hooks and test them only in a scratch project.**
+  Rejected: it is exactly the "we will test it elsewhere" that leaves the
+  primary repository ungoverned, and ADR-0001 kept dogfooding at the cost of a
+  more complicated layout precisely to avoid this.
+
+### Decision
+
+devseed carries its own `/.claude/settings.json` registering the same eight
+events against `${CLAUDE_PROJECT_DIR}/plugins/governed-dev/hooks/` — the working
+tree. A hook edit takes effect on save, with no publish-and-update cycle.
+
+The **scripts are not duplicated**. There is one copy of each, under
+`plugins/governed-dev/hooks/`, and both wirings point at it. Duplication is
+confined to the event set, the matchers and the async flags.
+
+`hook_gate()` in `hooks/lib.sh` resolves the gate **relative to the running
+script** rather than from `${CLAUDE_PLUGIN_ROOT}`, precisely because a stale
+plugin may also be installed: taking the environment variable first would run
+the working tree's hook against the installed copy's gate — two definitions of
+done in one invocation.
+
+### Consequences
+
+- **A mirror that can drift.** `hooks.json` is the source of truth and
+  `settings.json` follows it. Nothing notices divergence today, so **T-006's
+  acceptance criteria are extended** to assert the two agree on events and
+  matchers. Until T-006 lands, this is an unguarded seam and is named as one in
+  both files.
+- The consumer-facing path is unchanged. Consumers get the hooks from the
+  plugin; only devseed carries the mirror, and `settings.json` says so in its
+  own `_README`.
+- Recorded here so it is findable: **omitting `version` from `plugin.json` means
+  every install is pinned to a SHA and goes stale silently.** Any project
+  depending on the plugin needs an explicit update step. That is a cost of
+  ADR-0001, not a defect in it.
+- `.claude/settings.json` is committed and shared, unlike
+  `.claude/settings.local.json`, which `.gitignore` excludes as per-machine.
+
+---
+
 ## Spec gaps observed
 
 Assumptions made where the spec was silent, per
@@ -563,3 +844,69 @@ source text.
 criteria, these tasks will have been written to the wrong target — and the
 convention that criteria are written before work starts will have been satisfied
 in form only. Check them against the source before starting either task.
+
+### SG-0005 — Nothing says what boundary governs the main session thread
+
+- **Date:** 2026-07-31
+- **Status:** Open — needs human confirmation
+
+T-007 and ADR-0007 define a write boundary per agent: spec-guardian, reviewer
+and auditor read-only; implementer denied the three root ledger documents;
+scribe scoped to `DECISIONS.md`, `TASKS.md`, `CLAUDE.md`. `boundary.sh` enforces
+those at `PreToolUse`.
+
+The hook event carries `agent_type` **only inside a subagent**. Work done by the
+top-level session — which is most work — arrives with the field absent, and
+neither `DESIGN.md` nor T-007 says what governs it.
+
+**Assumed:** absent `agent_type` means the main thread, which has no declared
+boundary, and is allowed. Recorded at the point of contact in
+`plugins/governed-dev/hooks/boundary.sh`.
+
+The alternative — deny by default — was not taken because it makes the project
+unwritable outside a subagent, and every consumer of the plugin would find their
+first edit blocked with no route through. But this assumption is the one that
+decides whether the roster is enforcement or theatre: **the implementer boundary
+only binds an agent that actually runs as the implementer subagent.** A session
+doing implementer work on the main thread can still write `DECISIONS.md`, and
+that is precisely the act ADR-0007 exists to prevent.
+
+**Depends on this:** T-007's acceptance criterion is an observed denial, which
+this satisfies for a real subagent. It does not close the main-thread route.
+Settling this needs a human decision: either the main thread is trusted (state
+it), or the top-level session must adopt a declared role and the boundary
+applies to it too — which is a larger change than a hook.
+
+### SG-0006 — Exec form narrows the Windows prerequisite from installed to on-PATH *(resolved in ADR-0010)*
+
+- **Date:** 2026-07-31
+- **Status:** Resolved — the assumption below was **wrong**, and was caught by
+  testing rather than by reasoning. Exec form was not worth the narrowing: on
+  the development machine it meant no hook would run at all. ADR-0010 moved both
+  wirings to shell form with quoted placeholders, which needs no `PATH` entry
+  and still cannot split a path containing spaces. The `TODO(spec)` marker in
+  `hooks.json` is gone with the exec-form entries it annotated.
+
+Every entry in `hooks/hooks.json` uses exec form — `"command": "bash"` with the
+script path in `args` — because exec form passes each argument verbatim with no
+shell tokenization, so a project path containing spaces cannot split.
+
+Exec form has no shell, so `bash` must resolve **on `PATH`**. ADR-0006 made Git
+Bash a prerequisite on Windows but said nothing about `PATH`, and the two are
+not the same: on the development machine Git Bash is installed at
+`C:\Program Files\Git\bin\bash.exe` and `bash` does **not** resolve on `PATH`.
+
+The failure mode is the bad one. A gate that cannot run fails loudly by design;
+a hook whose command cannot be spawned does not run, and a hook that does not
+run enforces nothing and announces nothing.
+
+**Assumed:** exec form is worth the narrowing, and the narrowing is a
+documentation and preflight problem rather than a design change. `preflight.sh`
+warns when `bash` is missing from `PATH` on Windows. Shell form with
+`"shell": "bash"` would avoid it — the harness finds Git Bash itself in shell
+form — at the cost of quoting every path placeholder by hand.
+
+**Depends on this:** whether the plugin works at all on a Windows machine where
+Git Bash is installed but not on `PATH`. If the answer is that it must, this
+should flip to shell form with quoted placeholders and ADR-0006 should gain the
+`PATH` requirement explicitly.

@@ -32,6 +32,12 @@ $RECYCLE.BIN/
 # Claude Code local state (settings.local.json is per-machine, not shared)
 .claude/settings.local.json
 
+# Hook scratch. Per-session and per-machine: the HEAD a session started at, the
+# last gate result, the Stop-hook block counter, and the PreCompact handoff
+# note. .claude/activity.jsonl is deliberately NOT here -- ADR-0003 commits it.
+.claude/.hook-state/
+.claude/in-flight.md
+
 # Logs and scratch
 *.log
 logs/
