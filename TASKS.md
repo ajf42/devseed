@@ -77,7 +77,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `${CLAUDE_PROJECT_DIR}`; the existing `_CONVENTION_*` notes survive the edit;
   `claude plugin validate .` still passes; `plugin details` reports a nonzero
   hook count.
-- **Status:** in-progress (Prompt 4)
+- **Status:** done
+- **Commit:** `a2c0cb8`
 - **Note:** Eight hooks registered across `Setup`, `SessionStart`, `PreToolUse`,
   `PostToolUse`, `Stop`, `PreCompact`, `SessionEnd`, `SubagentStop`, with eight
   scripts in `plugins/governed-dev/hooks/` and a devseed-only mirror at
@@ -119,7 +120,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   set, the matchers and the async flags. Assert the two agree. Nothing else
   will notice, and a mirror that has silently stopped matching is the same
   class of defect as a `CLAUDE.md` describing files that no longer exist.
-- **Status:** in-progress — hash recorded next commit
+- **Status:** done
+- **Commit:** `803df4d`
 - **Built:** `plugins/governed-dev/gates/drift.sh`, wired as gate check 7 via
   `check-07-drift.sh`. Six drift classes: duplication (no ≥12-word run of a
   DESIGN.md rules section in CLAUDE.md), staleness (both directions), budget
