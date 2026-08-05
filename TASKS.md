@@ -167,7 +167,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   carrying an `agent_type`, i.e. real subagents. The main session thread is
   unbounded, per **SG-0005**. Until the agents exist the boundaries have nothing
   to bind, and CLAUDE.md must not describe them as enforced.
-- **Status:** in-progress — hash recorded next commit
+- **Status:** done
+- **Commit:** `3444eff`
 - **Built:** five agents at `plugins/governed-dev/agents/`, each declaring
   `tools:` explicitly, plus [`.claude/rules/delegation.md`](.claude/rules/delegation.md)
   describing the loop and naming its one rule — the agent that makes a decision
