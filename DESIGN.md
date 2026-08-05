@@ -159,6 +159,7 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
 | 4 | Working memory current | Files under `src/` changed but `CLAUDE.md` did not |
 | 5 | Task ledger honest | A `## T-NNN` task is marked `done` with no commit hash |
 | 6 | Spec gaps answered | A `TODO(spec)` marker in a changed file cites no `SG-NNNN` id, or cites one absent from `DECISIONS.md` |
+| 7 | Documents match the repository | `CLAUDE.md` copies a run of a rules section, names a path that is gone, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; an ADR was deleted |
 
 ### Conventions the gate depends on
 
@@ -170,6 +171,16 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
   and must **resolve to a commit in this repository** — check 5 runs
   `git cat-file -t`, so a well-formed but fabricated hash fails. `pending`
   deliberately does not satisfy it either.
+- Check 7 finds the rules to protect by **section title**, not section number:
+  any `## ` heading naming rules, conventions, constraints, a contract or
+  standards. Nothing is hardcoded, so editing the spec never means editing the
+  guard — which matters, because a guard needing hand-updating alongside the
+  thing it guards is one more copy free to drift.
+- `CLAUDE.md`'s structure block is an indented tree inside a fenced code block,
+  under a heading naming *structure*. Indentation picks the parent; the first
+  run of two or more spaces ends the path column and begins commentary, which
+  check 7 ignores. A `.gitignore`d path is exempt from having to exist, since
+  ignored paths are runtime state rather than structure.
 
 ### Known limits
 
@@ -188,6 +199,16 @@ These are deliberate, and stated so they are not mistaken for coverage:
   rather than via the consumer's `.gitignore` (ADR-0005). A project that
   legitimately tracks a directory named `build/` or `dist/` will not have
   changes there seen by checks 4 or 6.
+- **Check 7 measures copying, not agreement.** A summary that is *wrong* but
+  shares no long run of words passes. It catches the mechanism by which
+  documents diverge — duplicated text with no maintainer — not divergence
+  itself, which no script can judge.
+- **Check 7's reverse staleness test covers top-level directories only.** A
+  file or a nested directory absent from the structure block is not reported;
+  only paths the block *names* are checked in the forward direction.
+- **Check 7's hook-parity test is self-disabling.** It runs only where a
+  project both ships `hooks.json` and mirrors it into `.claude/settings.json`,
+  which is devseed's arrangement (ADR-0011) and not a consumer's.
 
 ## 6. Amendment procedure
 

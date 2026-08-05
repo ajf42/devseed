@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check 5 -- every task marked done carries a hash that resolves to a commit.
 # Sourced by gate.sh.
-CHECK="5/6 task ledger"
+CHECK="5/7 task ledger"
 
 if [ ! -f TASKS.md ]; then
   note "check 5 (task ledger): no TASKS.md -- nothing to check."

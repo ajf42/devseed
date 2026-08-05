@@ -1,0 +1,575 @@
+#!/usr/bin/env bash
+#
+# drift.sh -- structural drift guard across the four ledger documents.
+#
+# The other checks ask "is the code done?". This one asks "do the documents
+# still describe the repository?" -- the failure class precedence.md calls
+# STRUCTURAL disagreement, as opposed to ordinary staleness. It is the
+# mechanical version of a review that was previously done by hand, and found
+# four real defects doing it (T-012..T-015).
+#
+# Six checks, all read-only:
+#
+#   1 duplication  CLAUDE.md must not copy >=12 contiguous words out of a
+#                  DESIGN.md rules section. Summaries reference; they do not
+#                  copy. Copied text is text that will silently diverge.
+#   2 staleness    every path named in CLAUDE.md's structure block exists, and
+#                  every top-level directory on disk is named there.
+#   3 budget       CLAUDE.md <= 300 lines, warned at 250.
+#   4 orphans      every ADR-NNNN / SG-NNNN cited anywhere resolves to an entry
+#                  in DECISIONS.md; every done task cites a commit that exists.
+#   5 superseded   ADR numbers are contiguous, and no ADR or spec gap that ever
+#                  existed in git history has been deleted.
+#   6 hook parity  where a project mirrors hooks.json into .claude/settings.json,
+#                  the two must agree on events, matchers and async flags.
+#
+# SELF-UPDATING BY CONSTRUCTION. Check 1 re-reads DESIGN.md at runtime and
+# derives its canaries from whatever the rules sections currently say. Editing
+# the spec never requires editing this guard -- which is the whole point, since
+# a guard that needed hand-updating alongside the thing it guards is one more
+# copy to drift.
+#
+# EXIT CODES: 0 = no drift, 2 = drift found. NEVER 1 -- see gate.sh.
+#
+# NO SIDE EFFECTS. Reports drift; changes nothing. Unlike the other checks this
+# one does NOT stop at the first finding: a drift report is only useful if it
+# is the whole list, so findings accumulate and the exit happens at the end.
+#
+# Usage:  bash drift.sh            standalone / CI
+#         (also run as gate check 7 via check-07-drift.sh)
+#
+# Deliberately not `set -e`: exit codes are controlled explicitly, and -e would
+# surface a finding as exit 1, which does not block.
+set -uo pipefail
+
+if [ -z "${BASH_VERSION:-}" ]; then
+  printf 'GATE FAIL: drift.sh requires bash. Run it as: bash %s\n' "$0" >&2
+  exit 2
+fi
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$HERE/lib.sh" ] || {
+  printf 'GATE FAIL: %s/lib.sh is missing. The gate is incomplete.\n' "$HERE" >&2
+  exit 2
+}
+# shellcheck source=lib.sh
+. "$HERE/lib.sh"   # sets ROOT and cds into it; provides die/note/have
+
+CHECK="7/7 drift"
+
+# The substantial-copy threshold, in words. Short runs legitimately co-occur
+# (section titles, shared terminology, a quoted phrase); a whole copied bullet
+# does not. Overridable so the regression harness can provoke a hit cheaply.
+WINDOW="${DRIFT_WINDOW:-12}"
+
+BUDGET_FAIL="${DRIFT_BUDGET_FAIL:-300}"
+BUDGET_WARN="${DRIFT_BUDGET_WARN:-250}"
+
+FOUND=0
+
+# drift <file[:line]> <what is wrong> <what to do about it>
+# Failure messages are instructions, not complaints (DESIGN.md §5) -- an agent
+# reads this text and acts on it, so every finding carries its own fix.
+drift() {
+  FOUND=$((FOUND + 1))
+  printf 'DRIFT [%s] %s\n' "$CHECK" "$1" >&2
+  printf '  %s\n' "$2" >&2
+  printf '  Fix: %s\n' "$3" >&2
+}
+
+warn() { printf 'drift: WARNING %s -- %s\n' "$1" "$2" >&2; }
+skip() { printf 'drift: %s\n' "$1" >&2; }
+
+# ---------------------------------------------------------------------------
+# Check 1 -- duplication
+#
+# A DESIGN.md rules section is any "## " section whose title names rules,
+# conventions, constraints, a contract or standards. That pattern -- not a
+# hardcoded section number -- is what makes the check survive DESIGN.md being
+# renumbered. Section 5 is "Build rules" here and in the shipped template.
+# ---------------------------------------------------------------------------
+DUP_AWK='
+function norm(s) {
+  # [label](url) -> label. The URL is not prose and must not become tokens,
+  # or every link would look like duplicated text.
+  gsub(/\]\([^)]*\)/, "]", s)
+  s = tolower(s)
+  # Everything that is not an ASCII alphanumeric becomes a separator. This is
+  # what folds smart quotes, em dashes, backticks, emphasis markers, list
+  # bullets and heading hashes in one step -- they are all punctuation, and
+  # punctuation never survives into the token stream.
+  gsub(/[^a-z0-9]+/, " ", s)
+  gsub(/^ +/, "", s); gsub(/ +$/, "", s)
+  return s
+}
+
+BEGIN { W = window + 0; if (W < 2) W = 12; top = 0 }
+
+# ---- first file: DESIGN.md ----
+FNR == NR {
+  if ($0 ~ /^## /) {
+    insec = (tolower($0) ~ /rule|convention|constraint|contract|standard/)
+    if (insec) { nsec++; secname[nsec] = $0 }
+    # The heading itself is excluded. Section titles legitimately appear in
+    # both documents -- CLAUDE.md has its own "Build rules" heading -- and
+    # counting them would make every correct pointer look like a copy.
+    next
+  }
+  if (!insec) next
+  n = norm($0); if (n == "") next
+  m = split(n, a, " ")
+  for (i = 1; i <= m; i++) { dn++; D[dn] = a[i]; DSEC[dn] = nsec }
+  next
+}
+
+# ---- second file: CLAUDE.md ----
+{
+  n = norm($0); if (n == "") next
+  m = split(n, a, " ")
+  for (i = 1; i <= m; i++) { cn++; C[cn] = a[i]; CLINE[cn] = FNR }
+}
+
+END {
+  if (nsec == 0) { print "NOSECTION"; exit }
+  if (dn < W || cn < W) exit
+
+  # A flat string of the CLAUDE.md tokens, so the common case (no overlap at
+  # all) costs one index() per window instead of a quadratic scan.
+  blob = " "
+  for (i = 1; i <= cn; i++) blob = blob C[i] " "
+
+  hits = 0
+  for (i = 1; i + W - 1 <= dn; i++) {
+    ng = D[i]
+    for (k = 1; k < W; k++) ng = ng " " D[i + k]
+    if (index(blob, " " ng " ") > 0) { hit[i] = 1; hits++ }
+  }
+  if (hits == 0) exit
+
+  # Coalesce overlapping windows into the largest contiguous span, so one
+  # copied paragraph is reported once rather than once per offset.
+  i = 1
+  while (i <= dn) {
+    if (!(i in hit)) { i++; continue }
+    s = i
+    while ((i + 1) in hit) i++
+    e = i + W - 1
+
+    wit = D[s]
+    for (k = s + 1; k <= e; k++) wit = wit " " D[k]
+
+    # Locate the span in CLAUDE.md to name a line. Try the full span first;
+    # fall back to its leading window, which matched by construction.
+    cl = locate(s, e)
+    if (cl == 0) cl = locate(s, s + W - 1)
+
+    printf "HIT\t%d\t%d\t%s\t%s\n", cl, e - s + 1, secname[DSEC[s]], wit
+    i++
+  }
+}
+
+function locate(a0, b0,   p, k, ok) {
+  for (p = 1; p + (b0 - a0) <= cn; p++) {
+    ok = 1
+    for (k = 0; k <= b0 - a0; k++) if (C[p + k] != D[a0 + k]) { ok = 0; break }
+    if (ok) return CLINE[p]
+  }
+  return 0
+}
+'
+
+check_duplication() {
+  if [ ! -f DESIGN.md ] || [ ! -f CLAUDE.md ]; then
+    skip "check 1 (duplication): DESIGN.md or CLAUDE.md absent -- nothing to compare."
+    return
+  fi
+
+  local out
+  out="$(awk -v window="$WINDOW" "$DUP_AWK" DESIGN.md CLAUDE.md 2>/dev/null)"
+
+  if [ "$out" = "NOSECTION" ]; then
+    # Not a skip. A DESIGN.md with no identifiable rules section means the
+    # check is inert, and an inert guard that reports success is exactly the
+    # silent degradation DESIGN.md §5 is written against.
+    drift "DESIGN.md" \
+"no section heading names rules, conventions, constraints, a contract or standards, so the duplication check has nothing to compare against and is silently inert." \
+"title the rules section so it matches -- e.g. '## 5. Build rules' -- or, if this project genuinely has no rules section, remove check 7 from gate.sh rather than leaving a guard that always passes."
+    return
+  fi
+
+  [ -n "$out" ] || return 0
+
+  local line words sec wit
+  while IFS="$(printf '\t')" read -r _tag line words sec wit; do
+    [ "${_tag:-}" = "HIT" ] || continue
+    drift "CLAUDE.md:${line}" \
+"$words-word run copied from DESIGN.md \"${sec#\#\# }\": \"$wit\"" \
+"replace it with a one-line summary and a pointer to that section. CLAUDE.md may say THAT a rule holds and link to it; restating the rule creates a second copy with no maintainer, and the two diverge the moment the spec is edited."
+  done <<EOF
+$out
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Check 2 -- staleness
+#
+# CLAUDE.md's structure block is an indented tree. A line's indentation picks
+# its parent; the first run of two-or-more spaces ends the path column and
+# begins commentary. Commentary is ignored -- it routinely names other files
+# ("DESIGN.md vs CLAUDE.md authority") and treating those as paths would
+# invent children that were never claimed to exist.
+# ---------------------------------------------------------------------------
+TREE_AWK='
+BEGIN { top = 0 }
+/^## / { insec = (tolower($0) ~ /structure/); next }
+!insec { next }
+/^[ \t]*```/ { fence = !fence; next }
+!fence { next }
+/^[ \t]*$/ { next }
+{
+  match($0, /^ */); ind = RLENGTH
+  rest = substr($0, ind + 1)
+  if (match(rest, /  +/)) rest = substr(rest, 1, RSTART - 1)
+
+  while (top > 0 && sind[top] >= ind) top--
+  prefix = (top > 0) ? spre[top] : ""
+
+  n = split(rest, names, " ")
+  for (i = 1; i <= n; i++) {
+    nm = names[i]
+    # Path-like means it ends in "/" or contains a ".". Bare words are the
+    # second column of the hook table (Setup, SubagentStop) and prose, and
+    # must not be mistaken for filenames.
+    if (nm !~ /\/$/ && nm !~ /\./) continue
+    printf "%d\t%s\n", FNR, prefix nm
+    if (nm ~ /\/$/) { top++; sind[top] = ind; spre[top] = prefix nm }
+  }
+}
+'
+
+check_staleness() {
+  if [ ! -f CLAUDE.md ]; then
+    skip "check 2 (staleness): no CLAUDE.md -- nothing to check."
+    return
+  fi
+
+  local rows
+  rows="$(awk "$TREE_AWK" CLAUDE.md 2>/dev/null)"
+
+  if [ -z "$rows" ]; then
+    skip "check 2 (staleness): CLAUDE.md has no fenced structure block -- nothing to check."
+    return
+  fi
+
+  local line path matches
+  while IFS="$(printf '\t')" read -r line path; do
+    [ -n "${path:-}" ] || continue
+
+    case "$path" in
+      *[*?[]*)
+        # A glob stands for a family of files. One match is enough; zero means
+        # the family named in the documentation is gone.
+        matches=( $path )
+        [ -e "${matches[0]}" ] && continue
+        drift "CLAUDE.md:$line" \
+"the structure block names \`$path\`, which matches nothing on disk." \
+"restore the files, or correct the pattern in CLAUDE.md's structure block. A structure block is read as the map of the repository; a path in it that resolves to nothing sends the next session looking for something that is not there."
+        continue
+        ;;
+    esac
+
+    [ -e "$path" ] && continue
+
+    # Ignored paths are runtime state, not structure -- .claude/in-flight.md
+    # and .claude/.hook-state/ exist only mid-session. Their absence is normal
+    # and must not be reported as drift.
+    if git check-ignore -q -- "$path" 2>/dev/null; then continue; fi
+
+    drift "CLAUDE.md:$line" \
+"the structure block names \`$path\`, which does not exist." \
+"create it, or delete the line from CLAUDE.md's structure block. If the path is generated at runtime, add it to .gitignore -- ignored paths are exempt from this check."
+  done <<EOF
+$rows
+EOF
+
+  # The other direction. A structure block that omits a real directory is the
+  # more dangerous half: the reader cannot notice what was never mentioned.
+  local d name
+  for d in */ .*/ ; do
+    [ -d "$d" ] || continue
+    name="${d%/}"
+    case "$name" in .|..|.git) continue ;; esac
+    git check-ignore -q -- "$name" 2>/dev/null && continue
+
+    printf '%s\n' "$rows" | cut -f2 | grep -q "^$(printf '%s' "$name" | sed 's/[][\.*^$/]/\\&/g')/" && continue
+
+    drift "CLAUDE.md" \
+"top-level directory \`$name/\` exists on disk but appears nowhere in CLAUDE.md's structure block." \
+"add it to the structure block with a one-line description of what it holds, or remove the directory. An undocumented directory is invisible to anyone reading CLAUDE.md as the map of the repository."
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Check 3 -- budget
+#
+# The ceiling is the point, not an aspiration: CLAUDE.md is read in full every
+# session, and one that grows without bound stops being read carefully. An
+# unread current-state record is worse than none -- it still looks
+# authoritative. The warning exists so compression happens on a normal commit
+# rather than as an emergency on the commit that crosses the line.
+# ---------------------------------------------------------------------------
+check_budget() {
+  [ -f CLAUDE.md ] || return 0
+
+  local n
+  n="$(wc -l < CLAUDE.md | tr -d ' ')"
+
+  if [ "$n" -gt "$BUDGET_FAIL" ]; then
+    drift "CLAUDE.md:$n" \
+"CLAUDE.md is $n lines, over its hard ceiling of $BUDGET_FAIL." \
+"compress it before continuing, routing detail by kind: constraints to DESIGN.md, rationale to DECISIONS.md as an ADR, per-directory mechanics to a README.md in that directory, pending work to TASKS.md, superseded state deleted outright. Leave a one-line pointer in place of anything moved."
+  elif [ "$n" -gt "$BUDGET_WARN" ]; then
+    warn "CLAUDE.md:$n" \
+"$n lines, past the $BUDGET_WARN-line warning mark and $((BUDGET_FAIL - n)) short of the $BUDGET_FAIL-line ceiling. Compress on this commit, not on the one that crosses it."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check 4 -- orphans
+# ---------------------------------------------------------------------------
+check_orphans() {
+  require_git
+
+  if [ ! -f DECISIONS.md ]; then
+    skip "check 4 (orphans): no DECISIONS.md -- id references cannot be resolved."
+  else
+    # Every tracked file except DECISIONS.md itself, which is where the ids are
+    # DEFINED, and the activity log, which is machine-written and append-only:
+    # a stale id in the audit trail is history, not drift, and correcting it by
+    # hand would be the real violation (ADR-0003).
+    local files line f lno ident
+    files="$(git ls-files 2>/dev/null | grep -v '^DECISIONS\.md$' | grep -v '^\.claude/activity\.jsonl$')"
+
+    while IFS= read -r f; do
+      [ -n "$f" ] && [ -f "$f" ] || continue
+      # grep -no gives "<line>:<id>" -- the number and the matched id and
+      # nothing else, which is exactly the pair this needs.
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        lno="${line%%:*}"
+        ident="${line#*:}"
+        case "$ident" in
+          ADR-*) grep -q "^## $ident\b" DECISIONS.md 2>/dev/null && continue
+                 drift "$f:$lno" \
+"cites $ident, which has no \"## $ident\" heading in DECISIONS.md." \
+"add the ADR to DECISIONS.md, or correct the reference. A decision cited by number that nobody can look up is indistinguishable from one that was never made."
+                 ;;
+          SG-*)  grep -q "^### $ident\b" DECISIONS.md 2>/dev/null && continue
+                 drift "$f:$lno" \
+"cites $ident, which has no \"### $ident\" heading under 'Spec gaps observed' in DECISIONS.md." \
+"record the gap in DECISIONS.md -- what was ambiguous, what was assumed, what depends on it -- or correct the reference."
+                 ;;
+        esac
+      done <<EOF
+$(grep -noE '(ADR|SG)-[0-9]{4}' "$f" 2>/dev/null | sort -u -t: -k2 )
+EOF
+    done <<EOF
+$files
+EOF
+  fi
+
+  # Done tasks must cite a commit that resolves. Check 5 of the gate asserts
+  # the same thing; the duplication is deliberate, because drift.sh is also run
+  # standalone in CI (T-009) where the rest of the gate may not have run.
+  [ -f TASKS.md ] || return 0
+
+  local rows task hash lno
+  rows="$(awk '
+    function flush() { if (t != "" && d == 1) printf "%s\t%s\t%s\n", tl, t, h }
+    /^## /            { flush(); d = 0; h = ""; t = ""
+                        if ($0 ~ /^## T-/) { t = $0; tl = FNR }
+                        next }
+    /\*\*Status:\*\*/ { if ($0 ~ /done/) d = 1 }
+    /\*\*Commit:\*\*/ { if (match($0, /`[0-9a-f]{7,}`/))
+                          h = substr($0, RSTART + 1, RLENGTH - 2) }
+    END               { flush() }
+  ' TASKS.md)"
+
+  while IFS="$(printf '\t')" read -r lno task hash; do
+    [ -n "${task:-}" ] || continue
+    if [ -z "${hash:-}" ]; then
+      drift "TASKS.md:$lno" \
+"${task#\#\# } is marked done but cites no commit hash." \
+"record the hash of the commit that completed it, or set the status back to in-progress. A task is not done until it points at the commit that did it."
+    elif [ "$(git cat-file -t "$hash" 2>/dev/null)" != "commit" ]; then
+      drift "TASKS.md:$lno" \
+"${task#\#\# } cites commit $hash, which resolves to nothing in this repository." \
+"correct it to the real hash, or set the status back to in-progress. A hash that resolves to nothing is a claim with no evidence behind it."
+    fi
+  done <<EOF
+$rows
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Check 5 -- superseded integrity
+#
+# DECISIONS.md is append-only: entries are superseded, never edited away. That
+# convention is unenforceable by inspection -- a deleted ADR leaves no trace in
+# the file it was deleted from. Git history is the only witness, so this check
+# asks it directly.
+# ---------------------------------------------------------------------------
+check_superseded() {
+  [ -f DECISIONS.md ] || return 0
+  require_git
+
+  local cur max n missing
+  cur="$(grep -oE '^## ADR-[0-9]{4}' DECISIONS.md 2>/dev/null | grep -oE 'ADR-[0-9]{4}' | sort -u)"
+  [ -n "$cur" ] || return 0
+
+  # Contiguity. A hole means an ADR was removed, or one was numbered by
+  # guessing rather than by taking the next number.
+  max="$(printf '%s\n' "$cur" | sed 's/ADR-//' | sort -n | tail -1)"
+  missing=""
+  for n in $(seq 1 "$((10#$max))"); do
+    printf '%s\n' "$cur" | grep -q "^ADR-$(printf '%04d' "$n")$" || \
+      missing="$missing ADR-$(printf '%04d' "$n")"
+  done
+  if [ -n "$missing" ]; then
+    drift "DECISIONS.md" \
+"the ADR numbers are not contiguous -- ADR-$(printf '%04d' "$((10#$max))") exists but${missing} do not." \
+"restore the missing entries, or renumber so the sequence has no holes. A gap reads as a deleted decision, and a decision log that can lose entries cannot be trusted about the ones it still has."
+  fi
+
+  # Deletion. Every id that ever appeared in DECISIONS.md must still be there.
+  local revs rev hist id
+  revs="$(git log --format=%H -- DECISIONS.md 2>/dev/null)"
+  [ -n "$revs" ] || return 0
+
+  local seen=""
+  while IFS= read -r rev; do
+    [ -n "$rev" ] || continue
+    hist="$(git show "$rev:DECISIONS.md" 2>/dev/null | grep -oE '^#{2,3} (ADR|SG)-[0-9]{4}' | grep -oE '(ADR|SG)-[0-9]{4}')"
+    while IFS= read -r id; do
+      [ -n "$id" ] || continue
+      case " $seen " in *" $id "*) continue ;; esac
+      if ! grep -qE "^#{2,3} $id\b" DECISIONS.md 2>/dev/null; then
+        seen="$seen $id"
+        drift "DECISIONS.md" \
+"$id existed in DECISIONS.md at commit ${rev:0:7} and is gone from the current file." \
+"restore the entry and mark it superseded instead of removing it. DECISIONS.md is append-only: a decision that was reversed is still a decision that was made, and deleting it destroys the only record of why the current one exists."
+      fi
+    done <<EOF
+$hist
+EOF
+  done <<EOF
+$revs
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Check 6 -- hook wiring parity
+#
+# Where a project both ships hooks.json and mirrors it into .claude/settings.json
+# (devseed does; ADR-0011), the two are one wiring in two files. The SCRIPTS are
+# shared, so the drift surface is exactly the event set, the matchers and the
+# async flags -- and nothing else in the repository would notice them parting.
+#
+# Self-disabling: a consumer that installs the plugin has no hooks.json of its
+# own, so the pair does not exist and the check does not run.
+# ---------------------------------------------------------------------------
+MIRROR="${DRIFT_HOOKS_MIRROR:-.claude/settings.json}"
+SHIPPED="${DRIFT_HOOKS_SHIPPED:-plugins/governed-dev/hooks/hooks.json}"
+
+# jq location, duplicated from hooks/lib.sh _jq_dir() rather than shared: the
+# two libs are separately sourced deliverables (one by the gate, one by the
+# hooks) and neither may depend on the other. winget installs jq into a Links
+# directory that only reaches processes started after the install, so a
+# freshly installed jq looks missing until the shell is restarted.
+find_jq() {
+  have jq && return 0
+  local d
+  for d in "/c/Program Files/jq" "/c/ProgramData/chocolatey/bin" \
+           "$HOME/AppData/Local/Microsoft/WinGet/Links" \
+           "/usr/local/bin" "/opt/homebrew/bin"; do
+    if [ -x "$d/jq" ] || [ -x "$d/jq.exe" ]; then
+      PATH="$d:$PATH"; export PATH; return 0
+    fi
+  done
+  d="$(ls -d "${LOCALAPPDATA:-$HOME/AppData/Local}"/Microsoft/WinGet/Packages/jqlang.jq_* 2>/dev/null | head -1)"
+  [ -n "$d" ] && [ -e "$d/jq.exe" ] && { PATH="$d:$PATH"; export PATH; return 0; }
+  return 1
+}
+
+# Reduce a wiring file to a comparable shape: one line per event per hook, as
+# event<TAB>matcher<TAB>script<TAB>flags. The command STRING is deliberately
+# not compared -- the two files point at different roots on purpose, which is
+# the entire reason the mirror exists. Only the script's basename carries over.
+HOOK_JQ='
+  .hooks
+  | to_entries[]
+  | .key as $event
+  | .value[]
+  | (.matcher // "*") as $m
+  | .hooks[]
+  | [ $event,
+      $m,
+      (.command | sub("^.*/"; "") | sub("\"$"; "")),
+      ((if .async      then "async"      else empty end),
+       (if .asyncRewake then "asyncRewake" else empty end))
+      | tostring
+    ]
+  | @tsv
+'
+
+check_hook_parity() {
+  if [ ! -f "$SHIPPED" ] || [ ! -f "$MIRROR" ]; then
+    return 0
+  fi
+
+  if ! find_jq; then
+    drift "$MIRROR" \
+"jq is not installed, so the hook wiring in $SHIPPED and $MIRROR cannot be compared." \
+"install jq -- Windows: winget install --id jqlang.jq -e; macOS: brew install jq; Debian: sudo apt-get install jq -- then re-run. A parity check that cannot run is a failed check, not a skip."
+    return
+  fi
+
+  local a b d
+  a="$(jq -r "$HOOK_JQ" "$SHIPPED" 2>/dev/null | sort)"
+  b="$(jq -r "$HOOK_JQ" "$MIRROR" 2>/dev/null | sort)"
+
+  if [ -z "$a" ] || [ -z "$b" ]; then
+    drift "$MIRROR" \
+"one of $SHIPPED / $MIRROR could not be parsed as hook wiring." \
+"check both files are valid JSON with a top-level \"hooks\" object, then re-run."
+    return
+  fi
+
+  [ "$a" = "$b" ] && return 0
+
+  d="$(diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") 2>/dev/null | sed 's/^/    /')"
+  drift "$MIRROR" \
+"the hook wiring has diverged from $SHIPPED. Lines are event/matcher/script/flags; \"<\" is $SHIPPED, \">\" is $MIRROR:
+$d" \
+"bring $MIRROR back into line with $SHIPPED, which is the source of truth. Only the event set, matchers, script names and async flags are compared -- the command paths differ on purpose, since the mirror points at the working tree and the shipped file at the installed plugin."
+}
+
+# ---------------------------------------------------------------------------
+
+check_duplication
+check_staleness
+check_budget
+check_orphans
+check_superseded
+check_hook_parity
+
+if [ "$FOUND" -gt 0 ]; then
+  printf '\nGATE FAIL [%s]: %d drift finding(s) above. The documents and the repository disagree.\n' \
+    "$CHECK" "$FOUND" >&2
+  printf 'Each finding names a file, a line where one applies, and the fix. Resolve them rather than\n' >&2
+  printf 'reconciling by hand in one direction -- see .claude/rules/precedence.md.\n' >&2
+  exit 2
+fi
+
+note "check 7 (drift): documents and repository agree."
+exit 0

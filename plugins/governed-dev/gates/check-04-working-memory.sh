@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check 4 -- code changed => working memory changed. Sourced by gate.sh.
-CHECK="4/6 working memory"
+CHECK="4/7 working memory"
 require_git
 
 _ch="$(changed_files)"

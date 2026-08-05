@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check 6 -- spec-gap markers in changed files are answered in DECISIONS.md.
 # Sourced by gate.sh.
-CHECK="6/6 spec gaps"
+CHECK="6/7 spec gaps"
 require_git
 
 # The marker is assembled at runtime so this file does not flag itself.

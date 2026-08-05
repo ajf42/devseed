@@ -71,6 +71,144 @@ scaffold
 printf '\n## T-003 — hashless\n\n- **Status:** done\n- **Commit:** —\n' >> "$WORK/TASKS.md"
 run_gate 2 "done task with no hash rejected"
 
+
+# --- T-006 regression: the drift guard ---------------------------------------
+# Check 7 reads the ledger documents, so it needs a project that HAS them --
+# the bare scaffold above deliberately does not. Each case below starts from a
+# clean, passing set and introduces exactly one defect, because a guard is only
+# proved by what it rejects: one that passes everything and one that fails
+# everything are indistinguishable from a clean run.
+DRIFT="$(dirname "$GATE")/drift.sh"
+
+# run_drift <expected-exit> <description> [must-appear-in-output]
+run_drift() {
+  local want="$1" desc="$2" needle="${3:-}" out got
+  out="$( cd "$WORK" && bash "$DRIFT" 2>&1 )"; got=$?
+  if [ "$got" = "$want" ]; then ok "$desc (exit $got)"; else bad "$desc -- wanted exit $want, got $got"; fi
+  [ "$got" != 1 ] || bad "$desc RETURNED 1 -- exit 1 does not block and must never be returned"
+  if [ -n "$needle" ]; then
+    case "$out" in
+      *"$needle"*) ok "$desc -- names '$needle'" ;;
+      *)           bad "$desc -- output does not name '$needle'"; printf '%s\n' "$out" | sed 's/^/        /' ;;
+    esac
+  fi
+}
+
+# A minimal but honest ledger: a DESIGN.md with a rules section, a CLAUDE.md
+# whose structure block matches the tree, and a contiguous ADR log.
+scaffold_docs() {
+  rm -rf "$WORK"; mkdir -p "$WORK/src" "$WORK/docs"; cd "$WORK" || exit 2
+  git init -q .; git config user.email regression@local; git config user.name regression
+  cat > DESIGN.md <<'MD'
+# DESIGN.md — probe
+
+## 1. What this is
+A scratch project.
+
+## 5. Build rules
+- Exit codes are the contract and nothing else is. A check that cannot run is
+  a failed check, and silent degradation is the failure mode engineered against.
+
+## 6. Amendment procedure
+Placeholder.
+MD
+  cat > CLAUDE.md <<'MD'
+# CLAUDE.md — probe
+
+## Current state
+Summarised; see DESIGN.md §5 for the rules themselves.
+
+## File structure as it stands
+
+```
+DESIGN.md                          spec
+CLAUDE.md                          this file
+DECISIONS.md                       ADR log
+TASKS.md                           backlog
+src/                               code
+  m.py                             a module
+docs/                              notes
+```
+MD
+  printf '# DECISIONS.md\n\n## ADR-0001 — first\nBody.\n\n## ADR-0002 — second\nBody.\n\n## Spec gaps observed\n\n### SG-0001 — a gap\nBody.\n' > DECISIONS.md
+  printf '# TASKS.md\n' > TASKS.md
+  printf 'X = 1\n' > src/m.py
+  printf 'notes\n' > docs/n.md
+  git add -A >/dev/null 2>&1; git commit -qm init
+}
+
+echo
+echo "T-006 -- drift guard, acceptance cases:"
+scaffold_docs
+run_drift 0 "clean ledger passes"
+
+# Acceptance 1: paste a sentence from DESIGN.md's rules section into CLAUDE.md.
+scaffold_docs
+printf '\nA check that cannot run is a failed check, and silent degradation is the failure mode engineered against.\n' >> "$WORK/CLAUDE.md"
+run_drift 2 "duplication: rules sentence pasted into CLAUDE.md" "silent degradation is the failure mode"
+
+# Acceptance 2: delete a directory the structure block names.
+scaffold_docs
+rm -rf "$WORK/docs"
+run_drift 2 "staleness: documented directory deleted" "docs/"
+
+# A directory that exists but was never documented -- the half a reader cannot
+# notice, since nothing in CLAUDE.md points at what is missing from it.
+scaffold_docs
+mkdir -p "$WORK/vendor" && printf 'x\n' > "$WORK/vendor/x.txt"
+run_drift 2 "staleness: undocumented top-level directory" "vendor/"
+
+# An ignored path is runtime state, not structure. devseed's own CLAUDE.md
+# names .claude/in-flight.md and .claude/.hook-state/, which exist only
+# mid-session; reporting their absence would make the guard cry wolf on every
+# clean checkout, and a guard that cries wolf gets switched off.
+scaffold_docs
+printf 'scratch/\n' > "$WORK/.gitignore"
+sed -i 's|^docs/ .*|&\nscratch/                           runtime scratch (ignored)|' "$WORK/CLAUDE.md"
+( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm ignore )
+run_drift 0 "gitignored path named but absent is not drift"
+
+# Orphans: an id cited in code that resolves to no entry in DECISIONS.md.
+#
+# The fixture ids are assembled at runtime rather than written literally, so
+# this file does not flag ITSELF -- check 7 scans every tracked file for id
+# references, and a deliberately-dangling id in a test fixture is
+# indistinguishable from a real orphan. check-06-spec-gaps.sh dodges its own
+# marker the same way. Caught by running the gate on this commit.
+_ADR="ADR-00"; _ADR="${_ADR}99"
+_SG="SG-00";   _SG="${_SG}99"
+
+scaffold_docs
+printf '\n# see %s\n' "$_ADR" >> "$WORK/src/m.py"
+run_drift 2 "orphan: ADR cited with no entry" "$_ADR"
+
+scaffold_docs
+printf '\n# see %s\n' "$_SG" >> "$WORK/src/m.py"
+run_drift 2 "orphan: spec-gap id cited with no entry" "$_SG"
+
+# Superseded integrity: a hole in the ADR sequence, and an ADR removed from a
+# file that git history proves once contained it.
+scaffold_docs
+printf '\n## ADR-0004 — fourth\nBody.\n' >> "$WORK/DECISIONS.md"
+run_drift 2 "superseded: ADR numbering not contiguous" "ADR-0003"
+
+scaffold_docs
+( cd "$WORK" && python - <<'PY' 2>/dev/null || sed -i '/^## ADR-0001/,/^## ADR-0002/{/^## ADR-0002/!d}' DECISIONS.md
+import io
+s = io.open('DECISIONS.md', encoding='utf-8').read()
+i, j = s.index('## ADR-0001'), s.index('## ADR-0002')
+io.open('DECISIONS.md', 'w', encoding='utf-8').write(s[:i] + s[j:])
+PY
+)
+run_drift 2 "superseded: ADR deleted, git history is the witness" "ADR-0001"
+
+# Budget. The ceiling is lowered rather than the file inflated, so the case
+# stays readable and does not depend on generating 300 lines of filler.
+scaffold_docs
+( cd "$WORK" && DRIFT_BUDGET_FAIL=5 DRIFT_BUDGET_WARN=2 bash "$DRIFT" >/dev/null 2>&1 )
+[ "$?" = 2 ] && ok "budget: CLAUDE.md over ceiling rejected (exit 2)" \
+             || bad "budget: CLAUDE.md over ceiling -- wanted exit 2"
+
 echo
 echo "summary: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 2

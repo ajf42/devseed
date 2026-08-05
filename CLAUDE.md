@@ -39,10 +39,17 @@ plugin installed into other projects. See ADR-0001.
 
 - Constitution at [`DESIGN.md`](DESIGN.md). Sections 1–5 substantive.
   §6 (amendment procedure) is still a placeholder.
-- **The gate**, at `plugins/governed-dev/gates/`. `gate.sh` orchestrates six
+- **The gate**, at `plugins/governed-dev/gates/`. `gate.sh` orchestrates seven
   checks in `check-*.sh`; `--fast` runs 1–3. Exit 0 pass, 2 fail, never 1.
   Verification only — it writes nothing. Run it as
   `bash plugins/governed-dev/gates/gate.sh`.
+- **The drift guard**, check 7, at `gates/drift.sh`. Asks whether the four
+  ledger documents still describe the repository: duplication, staleness,
+  budget, orphaned ids, deleted ADRs, hook-wiring parity. Unlike checks 1–6 it
+  reports every finding instead of stopping at the first, and runs standalone
+  for CI. Derives its canaries from DESIGN.md at runtime, so editing the spec
+  never means editing the guard. Limits are listed in DESIGN.md §5; ADR-0012
+  says why it is one script rather than six checks.
 - **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
@@ -132,7 +139,8 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
   gates/                           THE GATE — definition of "done"
     gate.sh                        orchestrator; --fast = checks 1-3
     lib.sh                         die/note/have, changed_files
-    check-0[1-6]-*.sh              one check each, sourced in order
+    check-0[1-7]-*.sh              one check each, sourced in order
+    drift.sh                       check 7's body; also runs standalone
   hooks/                           THE LIFECYCLE WIRING — see its README.md
     hooks.json                     8 hooks; carries the path conventions
     lib.sh                         stdin JSON, jq guard, root/gate/state paths

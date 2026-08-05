@@ -119,8 +119,24 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   set, the matchers and the async flags. Assert the two agree. Nothing else
   will notice, and a mirror that has silently stopped matching is the same
   class of defect as a `CLAUDE.md` describing files that no longer exist.
-- **Status:** todo (Prompt 5)
-- **Note:** criteria reconstructed, not transcribed — see SG-0004.
+- **Status:** in-progress — hash recorded next commit
+- **Built:** `plugins/governed-dev/gates/drift.sh`, wired as gate check 7 via
+  `check-07-drift.sh`. Six drift classes: duplication (no ≥12-word run of a
+  DESIGN.md rules section in CLAUDE.md), staleness (both directions), budget
+  (≤300 lines, warn at 250), orphans (ADR/SG ids, done-task hashes),
+  superseded integrity (contiguous ADR numbers, nothing deleted that git
+  history remembers), hook parity. Reports every finding, not the first.
+  Runs standalone for T-009. Design in ADR-0012.
+- **Criteria corrected:** the source prompt arrived and the reconstruction was
+  checked against it before work started, per SG-0004. Three criteria were
+  missing from it and one was invented; SG-0004 records the diff and the
+  human's decision to drop the invented one. The T-005 hook-parity clause was
+  kept.
+- **Verified:** 23 assertions in `scripts/gate-regression.sh`, including both
+  acceptance cases — a rules sentence pasted into CLAUDE.md fails naming the
+  duplicated text, and a deleted documented directory is caught. Each check was
+  also proved to bite individually against the real tree; a window sweep
+  (4→12 words) confirms check 1 is live rather than passing vacuously.
 
 ## T-007 — Agent roster with enforced tool boundaries
 

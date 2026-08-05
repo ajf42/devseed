@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check 3 -- linter and formatter are clean. Sourced by gate.sh.
-CHECK="3/6 lint"
+CHECK="3/7 lint"
 _ran=0
 
 if [ -f .eslintrc ] || [ -f .eslintrc.json ] || [ -f .eslintrc.cjs ] || [ -f eslint.config.js ]; then

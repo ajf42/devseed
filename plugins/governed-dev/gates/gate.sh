@@ -17,7 +17,7 @@
 # This script is LOCATED via ${CLAUDE_PLUGIN_ROOT} by whatever invokes it.
 # Reversing those two fails silently. See ../hooks/hooks.json.
 #
-# Usage:  gate.sh           all six checks
+# Usage:  gate.sh           all seven checks
 #         gate.sh --fast    checks 1-3 only, for the per-edit hook
 #
 # Deliberately not `set -e`: exit codes are controlled explicitly, and -e would
@@ -67,13 +67,14 @@ run_check 02-tests
 run_check 03-lint
 
 if [ "$FAST" = 1 ]; then
-  note "--fast: checks 4-6 (working memory, task ledger, spec gaps) not run."
+  note "--fast: checks 4-7 (working memory, task ledger, spec gaps, drift) not run."
   exit 0
 fi
 
 run_check 04-working-memory
 run_check 05-task-ledger
 run_check 06-spec-gaps
+run_check 07-drift
 
 note "all checks passed."
 exit 0

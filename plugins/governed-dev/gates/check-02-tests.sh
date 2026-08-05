@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check 2 -- the test suite passes. Sourced by gate.sh.
-CHECK="2/6 tests"
+CHECK="2/7 tests"
 
 if [ -f package.json ] && grep -q '"test"[[:space:]]*:' package.json; then
   have npm || die \

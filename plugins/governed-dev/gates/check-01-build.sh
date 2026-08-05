@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check 1 -- the code builds. Sourced by gate.sh.
-CHECK="1/6 build"
+CHECK="1/7 build"
 
 if [ -f package.json ] && grep -q '"build"[[:space:]]*:' package.json; then
   have npm || die \
