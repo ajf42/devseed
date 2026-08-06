@@ -213,10 +213,25 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** Sources documents from `templates/` rather than generating
   prose; installs namespaced as `/governed-dev:bootstrap`; verified against a
   project outside this repo.
-- **Status:** todo (Prompt 7)
+- **Status:** in-progress (commit hash not yet recorded; see note below)
 - **Note:** whether the seeded project also gets a `.gitattributes` (so a
   Windows-bootstrapped `gate.sh` doesn't reproduce the CRLF defect ADR-0015
-  closed in devseed) is open — see SG-0008.
+  closed in devseed) is resolved — see SG-0008.
+- **Built:** four skills at `plugins/governed-dev/skills/` — bootstrap, task,
+  adr, resume — mirrored to `.claude/skills/` as a third mirror alongside the
+  hook wiring and agent roster (ADR-0016). Also built:
+  `plugins/governed-dev/templates/rules/` and `templates/.gitattributes`
+  (ADR-0017); `check_skill_parity` added to `drift.sh`; and
+  `scripts/bootstrap-regression.sh`.
+- **Verified:** 44 bootstrap assertions, 37 gate assertions (now including
+  mirror-parity cases for both agents and skills, previously untested), 73
+  boundary assertions.
+- **A reviewer pass returned BLOCK before this landed**, with two HIGH
+  findings — a bootstrapped consumer project failed its own drift gate on
+  four dangling devseed ids in the shipped templates, and an invisible CRLF
+  drift in `auditor.md` (see SG-0009). Both were fixed; the first is now
+  asserted by `scripts/bootstrap-regression.sh`, which seeds a scratch
+  project and runs the real drift guard against it.
 
 ## T-009 — CI parity
 
@@ -337,7 +352,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   exits non-zero and says what failed, rather than reporting success on a commit
   that only exists locally. Records the commit hash against the task in
   `TASKS.md`, per the hash convention.
-- **Status:** todo (Prompt 7)
+- **Status:** in-progress, built under T-008's commit (hash not yet recorded)
+- **Deviation from this task's own acceptance text:** it says "refuses to
+  commit directly to `main` or `master`, branching first." The skill as built
+  commits locally on `main` and withholds the *push*, stating that direct
+  pushes to the default branch are not automatic by design. That is what
+  Prompt 7 specified and it is a different behaviour from branching first —
+  recorded here rather than reconciled.
 
 ## T-019 — `/adr` skill
 
@@ -347,7 +368,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   entry; refuses to write an entry whose Context names no rejected alternatives,
   since an ADR without them records a preference rather than a decision; marks
   superseded entries rather than removing them.
-- **Status:** todo (Prompt 7)
+- **Status:** in-progress, built under T-008's commit (hash not yet recorded)
 
 ## T-020 — `/resume` skill
 
@@ -356,7 +377,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** Reads `CLAUDE.md`, `TASKS.md`, `DECISIONS.md` and reports what
   exists, what is in progress, and what is next, without exploring the codebase;
   names open spec gaps; does not modify anything.
-- **Status:** todo (Prompt 7)
+- **Status:** in-progress, built under T-008's commit (hash not yet recorded)
 
 ## T-021 — `/amend` skill
 
@@ -368,7 +389,11 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   refuses to amend `DESIGN.md` to match drifted code, which `precedence.md`
   forbids and which is the one edit an amendment tool must not make easy.
   Distinguishes an amendment from a correction as §6 defines it.
-- **Status:** todo (Prompt 9, paired with T-010)
+- **Status:** todo (Prompt 9, paired with T-010) — stayed unbuilt by decision
+  rather than by omission. See ADR-0018: spec-guardian ruled CONFLICT against
+  building it now, since DESIGN.md §4 and §6 defer the amendment procedure to
+  Prompt 9 and the four-part shape Prompt 7 asked for appears nowhere in
+  DESIGN.md.
 
 ## T-022 — Ticket sync (optional)
 

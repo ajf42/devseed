@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# gate.sh -- PLACEHOLDER, deliberately not filled in. See SG-0003.
+# gate.sh -- PLACEHOLDER, deliberately not filled in.
 #
-# The working gate lives in the plugin at gates/gate.sh and runs against
-# ${CLAUDE_PROJECT_DIR}, so a consumer project needs no local copy for normal
-# use. Whether CI should vendor one instead -- ${CLAUDE_PLUGIN_ROOT} does not
-# resolve where the plugin is not installed -- is unresolved, and copying a
-# second gate here before that is settled would create exactly the drift
-# ADR-0002 flagged. Do not fill this in speculatively.
+# The working gate ships inside the governed-dev plugin and runs against
+# ${CLAUDE_PROJECT_DIR} via the hooks, so this project needs no local copy for
+# normal use. Its checks detect your build, tests and linter from evidence in
+# the repository -- a package.json build script, a tests/ directory, a linter
+# config -- so there is nothing to calibrate here per project.
 #
-# PATH CONVENTION (see ../hooks/hooks.json):
-#   This script inspects the CONSUMING PROJECT'S code, rooted at
-#   ${CLAUDE_PROJECT_DIR}. It is LOCATED via ${CLAUDE_PLUGIN_ROOT} by the hook
-#   that invokes it. Do not reverse these.
+# Whether CI should vendor a copy instead is a separate, open question:
+# ${CLAUDE_PLUGIN_ROOT} does not resolve where the plugin is not installed, so
+# CI either vendors the gate or installs the plugin first. Filling this in
+# before that is decided would create a second definition of "done" with no
+# maintainer, drifting from the real one from the day it was written.
 #
-# Bash, and on Windows that means Git Bash -- a stated prerequisite (DESIGN.md
-# §3, ADR-0006). A gate that only runs on one platform silently does not run.
+# PATH CONVENTION (see the plugin's hooks/hooks.json):
+#   A gate inspects THIS PROJECT'S code, rooted at ${CLAUDE_PROJECT_DIR}. It is
+#   LOCATED via ${CLAUDE_PLUGIN_ROOT} by the hook that invokes it. Do not
+#   reverse these -- both reversals fail silently.
+#
+# Bash, and on Windows that means Git Bash -- a stated prerequisite. A gate that
+# only runs on one platform is a gate that silently does not run.
 #
 # Deliberately NOT `set -e`: with -e a failed command exits 1, and Claude Code
 # treats exit 1 as a non-blocking error and proceeds anyway. A gate that returns

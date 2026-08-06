@@ -1,6 +1,6 @@
 # Rule: Which document owns which information
 
-Five documents record what devseed is, why, and what is next. They do not
+Five documents record what this project is, why, and what is next. They do not
 overlap. Before writing a fact down, decide which one owns it — guessing
 produces the same fact in three places, drifting apart at three speeds.
 
@@ -10,7 +10,7 @@ Ask what *kind* of statement it is:
 
 | The statement is… | It belongs in | Because |
 |---|---|---|
-| A constraint, an intent, something that **should be true** | `DESIGN.md` | Spec. Changes only via the amendment procedure (§6). |
+| A constraint, an intent, something that **should be true** | `DESIGN.md` | Spec. Changes only via the amendment procedure in §6. |
 | A description of what **is true right now** | `CLAUDE.md` | Current state. Expected to go stale; corrected in place. |
 | **Why** a choice was made, and what was rejected | `DECISIONS.md` | Rationale. Append-only; entries are superseded, never edited away. |
 | Work **not yet done** | `TASKS.md` | Backlog. One task per commit. |
@@ -39,9 +39,9 @@ use X" is an ADR. "Implement X" is a task. If it is genuinely undecided, it is
 neither — it is a spec gap.
 
 **Spec gaps.** When `DESIGN.md` is silent on something a change requires, the
-answer is never to pick and move on. Record it in **both** places — a `TODO` at
-the point of contact in the code, and an entry under "Spec gaps observed" in
-`DECISIONS.md`. See [`ambiguity.md`](ambiguity.md).
+answer is never to pick and move on. Record it in **both** places — a
+`TODO(spec): SG-NNNN` marker at the point of contact in the code, and an entry
+under "Spec gaps observed" in `DECISIONS.md`. See [`ambiguity.md`](ambiguity.md).
 
 ## When a fact seems to belong in two places
 
@@ -55,18 +55,12 @@ first. Summaries there stay short and always link to the owner.
 
 ## Overflow
 
-`CLAUDE.md` has a hard line budget — target 200, ceiling 300. When a change
-would exceed it, compress first, routing detail by the table above.
-Per-directory `README.md` files are the correct home for local mechanics that
-matter only inside one directory.
+`CLAUDE.md` has a hard line budget — target 200, ceiling 300 — because it is
+read in full every session, and every line spends context that belongs to the
+task. When a change would exceed it, compress *first*, routing detail by the
+table above. Per-directory `README.md` files are the correct home for local
+mechanics that matter only inside one directory.
 
-## Scope of this rule
-
-This file governs **devseed itself**. A consumer-facing counterpart now ships:
-`plugins/governed-dev/templates/rules/ledger.md`, which the bootstrap skill
-installs into the consumer's `.claude/rules/`. The two say the same thing with
-devseed's own ids and paths stripped from the shipped copy.
-
-That is two copies with one maintainer, and no guard compares them — byte
-equality would be wrong, since the difference is deliberate. When you edit this
-file, check whether the shipped one needs the same change.
+A `CLAUDE.md` that grows without bound stops being read carefully, and an unread
+current-state record is worse than none: it looks authoritative while nobody
+checks it.

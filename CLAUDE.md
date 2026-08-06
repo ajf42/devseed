@@ -74,15 +74,24 @@ plugin installed into other projects. See ADR-0001.
   [`.claude/rules/delegation.md`](.claude/rules/delegation.md).
   Mirrored to `.claude/agents/` so devseed can run its own roster (ADR-0014);
   drift check 6 enforces the two byte-identical.
+- **The skills**, four at `plugins/governed-dev/skills/`: `bootstrap` seeds a
+  project from `templates/`; `task` runs a task through the full agent loop
+  then commits — the only thing that commits; `adr` appends a decision entry;
+  `resume` reconstructs state from the ledger, changing nothing. Mirrored to
+  `.claude/skills/`, a third mirror on the hooks/roster reasoning (ADR-0016).
 - **The boundary's own regression:** `bash scripts/boundary-regression.sh`.
   73 synthetic `PreToolUse` events. Every defect found in that hook so far was
   invisible to inspection — run it after touching `boundary.sh` or any
   `tools:` list.
+- **The bootstrap skill's own regression:** `bash scripts/bootstrap-regression.sh`.
+  Seeds a scratch project and runs the real drift guard against it — caught
+  dangling devseed ids in the shipped templates before T-008 landed.
 - Four rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority), `ambiguity.md` (never invent past a spec gap),
   `ledger.md` (which document owns which fact), `delegation.md` (the agent
-  loop). These govern devseed and are deliberately **not** shipped — which
-  the shipped agents cite anyway, open as SG-0007.
+  loop). Govern devseed itself; ship in consumer-facing form, ids and paths
+  stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
+  SG-0007). No guard compares the two copies — SG-0011.
 - Plugin/marketplace manifests. `claude plugin validate .` passes with one
   warning: `version` is intentionally omitted from `plugin.json`, so the
   installed version resolves to the commit SHA. `--strict` fails on that
@@ -96,10 +105,13 @@ plugin installed into other projects. See ADR-0001.
 
 **Not built yet:**
 
-- `plugins/governed-dev/skills/` is empty (T-008). The roster now exists, so
-  `hooks/boundary.sh` has real agents to bind — but it binds **only real
-  subagents**: the main session thread carries no `agent_type` and is unbounded
-  (SG-0005). Most work happens on the main thread, so most work is unbounded.
+- `/amend` (T-021) stays unbuilt **by decision, not omission** — DESIGN.md §6
+  defers the amendment procedure to Prompt 9/T-010 (ADR-0018). §6 stays a
+  placeholder: there is still no sanctioned route to amend the constitution.
+- The roster now exists, so `hooks/boundary.sh` has real agents to bind — but
+  it binds **only real subagents**: the main session thread carries no
+  `agent_type` and is unbounded (SG-0005). Most work happens on the main
+  thread, so most work is unbounded.
 - The shell half of the boundary is **syntactic** and stops the expedient
   redirect, not a determined evasion through a variable or glob (ADR-0013).
   What carries the weight is the capability boundary — the scribe and
@@ -143,6 +155,7 @@ plugin installed into other projects. See ADR-0001.
   in-flight.md                     PreCompact handoff note (ignored; ADR-0009)
   .hook-state/                     per-session hook scratch (ignored)
   agents/                          MIRROR of the shipped roster (ADR-0014)
+  skills/                          MIRROR of the shipped skills (ADR-0016)
   rules/
     precedence.md                  DESIGN.md vs CLAUDE.md authority
     ambiguity.md                   spec gaps: ask or record, never invent
@@ -154,6 +167,7 @@ DECISIONS.md                       ADR log + spec gaps observed
 TASKS.md                           backlog, one task per commit
 scripts/gate-regression.sh         asserts gate behaviour; devseed-only
 scripts/boundary-regression.sh     asserts boundary.sh denials; devseed-only
+scripts/bootstrap-regression.sh    seeds a scratch project, runs drift.sh
 README.md                          one line; not yet written
 .gitignore
 .gitattributes                     forces LF for *.sh on checkout (ADR-0015)
@@ -165,7 +179,11 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
     reviewer.md                    gates out; NO FINDINGS is a real result
     scribe.md                      records only; no Write, no shell
     auditor.md                     runs the guards; proposes nothing
-  skills/                          empty — Prompt 7 adds bootstrap
+  skills/                          THE SKILLS — bootstrap, task, adr, resume
+    bootstrap/SKILL.md             seeds templates/ into a fresh project
+    task/SKILL.md                  runs a task end to end; the only committer
+    adr/SKILL.md                   appends a DECISIONS.md entry
+    resume/SKILL.md                reconstructs context from the ledger
   gates/                           THE GATE — definition of "done"
     gate.sh                        orchestrator; --fast = checks 1-3
     lib.sh                         die/note/have, changed_files
@@ -183,7 +201,10 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
     activity.sh    SessionEnd,     appends to .claude/activity.jsonl
                    SubagentStop
   templates/                       seed docs copied into consumer projects
-    DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh README.md
+    DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh README.md .gitignore
+    .gitattributes                 seeds *.sh text eol=lf into consumers
+    rules/                         consumer-facing rules, ids/paths stripped
+      precedence.md ambiguity.md delegation.md ledger.md
 ```
 
 Path rule for remaining work: content specified as `.claude/agents/*`,

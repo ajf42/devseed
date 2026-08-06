@@ -1,8 +1,9 @@
-# Generated artifacts. Seeded because gate.sh runs tools that write into the
-# working tree (pytest writes __pycache__/), and check 4 would otherwise read
-# those as source changes. The gate excludes this set unconditionally too --
-# this file is the second half of that fix, so a bootstrapped project starts
-# with a tree that stays clean. See ADR-0005.
+# Generated artifacts. Seeded because the gate runs tools that write into the
+# working tree (pytest writes __pycache__/), and the working-memory check would
+# otherwise read those as source changes -- failing on a committed tree, on the
+# first run and every run after. The gate excludes this set unconditionally
+# too; this file is the second half of that fix, so a project starts with a
+# tree that stays clean.
 
 # Python
 __pycache__/

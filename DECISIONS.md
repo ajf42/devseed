@@ -1057,6 +1057,163 @@ full coverage with no gap.
 
 ---
 
+## ADR-0016 — Local-path plugin install was tested and does not retire the mirrors; skills are a third, deliberate mirror
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+
+### Context
+
+ADR-0011 mirrored the hook wiring, ADR-0014 the agent roster, both because an
+installed plugin pins to a commit SHA. ADR-0014 said "a third would be
+evidence the pinned-install problem needs solving at its root rather than
+mirrored again per artifact." Both ADRs listed "install the plugin from a
+local path" as an alternative and rejected it as not reachable from the
+documented flow. That premise was tested directly rather than reasoned about.
+
+**What the test found.** `claude plugin marketplace add <path>` **is**
+supported — the CLI documents "URL, path, or GitHub repo" and stores source
+type `directory`. But `claude plugin install` still copies the plugin into
+`~/.claude/plugins/cache/<marketplace>/<plugin>/<sha>` keyed by commit SHA,
+exactly as for a GitHub source. An uncommitted working-tree edit is invisible;
+`plugin update` reports "already at the latest version". A local commit — no
+push, no remote at all — plus `marketplace update`, `plugin update` and a
+restart does move the pin. A **non-git** source directory instead gets version
+`unknown` and refreshes from the working tree on `plugin update`, but devseed
+is a git repository so that branch is unavailable without deleting `.git`.
+
+So the alternative is now reachable but does not solve the problem: it removes
+the push/GitHub round trip and nothing else. The working tree is still not the
+installed copy.
+
+**Alternatives considered:**
+
+- **Local-path install.** Reachable, but per the evidence above still
+  SHA-pinned and still a copy, so it retires nothing.
+- **Delete `.git` to get the non-git refresh behaviour.** Rejected: absurd for
+  the repository under governance, and it would end version control on the
+  thing being governed.
+- **Symlink the mirrors.** Already rejected in ADR-0014 because git symlinks
+  on Windows need `core.symlinks` plus developer mode and check out as plain
+  text files containing a path when unavailable, failing silently.
+- **Skip the mirror and accept devseed cannot run its own skills.** Rejected:
+  it is the same non-dogfooding ADR-0011 and ADR-0014 both refused, and an
+  unrun skill is an unverified one.
+
+### Decision
+
+Add `.claude/skills/` as a third mirror, and extend drift check 6 to
+byte-equality it in both directions as it already does for agents. The
+threshold ADR-0014 named has been crossed and the root cause was investigated
+as that sentence asked; the finding is that the root fix is not available at
+this layer.
+
+### Consequences
+
+- Three mirrored artifacts now, guarded but real.
+- The pinned-install cost of omitting `version` from `plugin.json` (ADR-0001)
+  is now confirmed structural rather than incidental.
+- If a future CLI release makes an install track a working tree, all three
+  mirrors and their guards should be retired and this entry superseded.
+- Byte-equality parity on `.md` files is fragile under `core.autocrlf=true` —
+  see SG-0009.
+
+---
+
+## ADR-0017 — The rule files ship to consumer projects
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+
+*This resolves SG-0007.*
+
+### Context
+
+The five shipped agents cite `.claude/rules/precedence.md` and
+`.claude/rules/ambiguity.md` by path, and `hooks/boundary.sh` cites
+`.claude/rules/ambiguity.md` in its deny messages, but `.claude/rules/` did
+not ship — so in a consumer project those references dangled while still
+reading as authoritative. SG-0007 named three options and said T-008 forces
+the answer. The human directed that one be picked and recorded, and that
+leaving it undecided was the one thing not permitted.
+
+**Alternatives considered:**
+
+- **Inline each rule's substance into the agent prompts and drop the
+  citations.** Rejected: it duplicates text into five files that will drift,
+  which is exactly what drift check 1 exists to catch, and the rules are
+  longer than an agent prompt should carry.
+- **Ship the roster and document the dangling references in the plugin
+  README.** Rejected: a reference that reads as authoritative and resolves to
+  nothing is the worst of the three, and a README note does not reach the
+  agent at the moment it cites the path.
+- **Ship the rules.** Chosen.
+
+### Decision
+
+`plugins/governed-dev/templates/rules/` now holds consumer-facing
+`precedence.md`, `ambiguity.md`, `delegation.md` and `ledger.md`, and the
+bootstrap skill installs them into the consumer's `.claude/rules/`. The
+shipped copies are the same substance with devseed's own ADR/SG ids and
+repo-specific paths stripped.
+
+### Consequences
+
+- Consumers adopt more.
+- Two copies of each rule now exist with one maintainer and **no guard
+  compares them**, because byte equality would be wrong — the difference is
+  deliberate (see SG-0011).
+- `.claude/rules/ledger.md` said the shipping question was undecided and has
+  been corrected in place.
+- **Related defect surfaced:** nothing shipped from `templates/` may cite a
+  devseed ADR/SG id, because the drift guard scans every tracked file and
+  such a citation fails the *consumer's* gate on their first commit in a repo
+  they have not touched. `templates/gate.sh`, `templates/.gitignore` and
+  `templates/README.md` were rewritten to remove four such citations, and
+  `scripts/bootstrap-regression.sh` now enforces the rule.
+
+---
+
+## ADR-0018 — `/amend` is deferred to Prompt 9 rather than built now
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+
+### Context
+
+Prompt 7 asked for an `/amend` skill implementing a four-part amendment
+procedure. spec-guardian ruled **CONFLICT**: `DESIGN.md` §4 defers the
+amendment procedure to §6 "filled in by Prompt 9", §6 says "until it is
+written, there is no sanctioned path for editing this document," and the
+four-part shape appears nowhere in `DESIGN.md`. T-021 already pairs the
+executor with T-010 and states "the procedure and its executor are separate
+tasks".
+
+**Alternatives considered:**
+
+- **Build it against the prompt's four-part procedure, treating the human as
+  supplying §6's content.** Rejected: it makes the tool the source and §6 the
+  transcription, which is the direction `precedence.md` forbids, and a
+  working tool would then shape what T-010 writes.
+- **Build it inert, refusing until §6 exists.** Rejected on the narrower
+  ground that the artifact built to detect and refuse would still encode the
+  deferred procedure, which is what §4 reserves for §6.
+- **Defer.** Chosen by the human when the conflict was put to them.
+
+### Decision
+
+`/amend` is not built. It stays T-021, Prompt 9, paired with T-010.
+
+### Consequences
+
+- Prompt 7's deliverable is four skills, not five, and that is stated rather
+  than quietly absorbed.
+- `DESIGN.md` §6 stays a placeholder, so the repository currently has no
+  sanctioned route to amend its own constitution — which is a real hole with
+  a scheduled fix.
+
+---
+
 ## Spec gaps observed
 
 Assumptions made where the spec was silent, per
@@ -1120,10 +1277,16 @@ no secrets, but that holds only as long as the content stays that way. If the
 end condition is never recorded, "temporary" decays into "public", which is the
 same drift this entry was rewritten to remove.
 
-### SG-0003 — Whether consumer projects vendor their own `gate.sh`
+### SG-0003 — Whether consumer projects vendor their own `gate.sh` *(bootstrap half settled)*
 
-- **Date:** 2026-07-31
-- **Status:** Open — needs human confirmation
+- **Date:** 2026-07-31 (narrowed 2026-08-06)
+- **Status:** Open, narrowed — bootstrap half settled, CI half still open
+
+**Update, 2026-08-06.** The bootstrap half is settled: bootstrap copies
+`templates/gate.sh` verbatim as a documented no-op and does not vendor a
+working gate. The CI half — whether CI needs a vendored copy, since
+`${CLAUDE_PLUGIN_ROOT}` does not resolve outside a session — remains open and
+is T-009/Prompt 8's question.
 
 ADR-0001 established that `plugins/governed-dev/templates/` holds seed content
 copied into consumer projects, and listed `gate.sh` among it. But the hook
@@ -1263,10 +1426,12 @@ Git Bash is installed but not on `PATH`. If the answer is that it must, this
 should flip to shell form with quoted placeholders and ADR-0006 should gain the
 `PATH` requirement explicitly.
 
-### SG-0007 — The shipped agents cite rule files that do not ship
+### SG-0007 — The shipped agents cite rule files that do not ship *(resolved in ADR-0017)*
 
 - **Date:** 2026-08-05
-- **Status:** Open — needs human decision
+- **Status:** Resolved — ADR-0017 chose "ship the rules". They now ship at
+  `plugins/governed-dev/templates/rules/` and the bootstrap skill installs
+  them into a consumer's `.claude/rules/`, so the citations resolve.
 
 The five agents under `plugins/governed-dev/agents/` ship to consumer projects.
 Their system prompts cite `.claude/rules/ambiguity.md`, `.claude/rules/precedence.md`
@@ -1304,10 +1469,11 @@ options, all real:
 
 T-008 (bootstrap) forces the answer, since it decides what a consumer receives.
 
-### SG-0008 — Whether `plugins/governed-dev/templates/` should ship a `.gitattributes`
+### SG-0008 — Whether `plugins/governed-dev/templates/` should ship a `.gitattributes` *(resolved)*
 
 - **Date:** 2026-08-05
-- **Status:** Open — needs human decision
+- **Status:** Resolved — the shipped `templates/.gitattributes` carries
+  `*.sh text eol=lf`, seeded by bootstrap.
 
 ADR-0015 added root `.gitattributes` normalizing `*.sh` to LF, scoped to
 devseed's own repository under DESIGN.md §4's "whatever it takes to copy this
@@ -1331,3 +1497,56 @@ gap out of scope (which decides they don't).
 `.gitattributes` into the target project. It also interacts with **SG-0003** —
 whether consumers vendor their own `gate.sh` at all — since if they do not,
 the same CRLF-on-checkout question may not arise the same way.
+
+### SG-0009 — Mirrored `.md` files have no line-ending protection, and byte-equality parity is fragile under `core.autocrlf=true`
+
+- **Date:** 2026-08-06
+- **Status:** Open — needs human decision
+
+`.gitattributes` scopes `text eol=lf` to `*.sh` only (that was the sanction
+ADR-0015 was granted). The agent and skill mirrors are compared with `cmp`,
+so a `git checkout` of a mirrored `.md` on Windows rewrites it CRLF and fails
+the gate while `git status` and `git diff` both show the tree clean. This
+happened during T-008: `plugins/governed-dev/agents/auditor.md` was restored
+by `git checkout` and silently became CRLF. It was fixed by normalising the
+file.
+
+**Assumed:** nothing — extending `.gitattributes` to `*.md` was not
+sanctioned and is not closed here.
+
+**Depends on this:** whether the mirror parity checks are reliable on Windows
+at all.
+
+### SG-0010 — The commit trailer was specified as "per Prompt 8 §4", which does not exist
+
+- **Date:** 2026-08-06
+- **Status:** Open — needs human decision
+
+The `/task` skill must append a trailer to every commit it makes. Prompt 8 is
+CI (T-009) and has not been written, so §4 of it cannot be read.
+
+**Assumed:** `/task` instructs reading `git log` and matching the convention
+the repository already uses, rather than inventing a format Prompt 8 would
+then have to match. Recorded at the point of contact in
+`plugins/governed-dev/skills/task/SKILL.md`.
+
+**Depends on this:** if Prompt 8 §4 specifies a different trailer, every
+commit `/task` made before then used the wrong one. Note the marker is in a
+`.md` file, which gate check 6 skips by design, so the gate will not catch it
+going stale.
+
+### SG-0011 — `templates/rules/` duplicates `.claude/rules/` with no guard
+
+- **Date:** 2026-08-06
+- **Status:** Open — needs human decision
+
+ADR-0017 ships four rule files whose consumer-facing copies say the same
+thing as devseed's own with ids and paths stripped. The agents and skills
+mirrors are guarded by byte equality; these cannot be, because the
+difference is deliberate.
+
+**Assumed:** hand-maintenance, with a note in `.claude/rules/ledger.md`
+telling an editor to check the shipped copy.
+
+**Depends on this:** an edit to a root rule leaves consumers on the old text
+indefinitely with nothing reporting it.

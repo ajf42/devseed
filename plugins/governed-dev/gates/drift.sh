@@ -595,6 +595,55 @@ check_agent_parity() {
   done
 }
 
+# The skills are mirrored for the third time on the same reasoning as the hook
+# wiring and the agent roster: an installed plugin pins to a commit SHA and goes
+# stale, so devseed cannot dogfood a skill it only ships. Local-path install was
+# tested rather than assumed and does not retire this -- it copies to a
+# SHA-keyed cache exactly as a GitHub source does. See ADR-0016.
+#
+# Byte equality, as for the agents: a skill body carries no path difference
+# between the two locations, so any difference at all is drift. Skills nest one
+# directory deeper than agents, so the comparison walks the tree rather than
+# globbing one level.
+#
+# Self-disabling in the same way: a consumer has no plugins/governed-dev/skills/
+# and so is not checked.
+SKILLS_SHIPPED="${DRIFT_SKILLS_SHIPPED:-plugins/governed-dev/skills}"
+SKILLS_MIRROR="${DRIFT_SKILLS_MIRROR:-.claude/skills}"
+
+check_skill_parity() {
+  [ -d "$SKILLS_SHIPPED" ] || return 0
+  [ -d "$SKILLS_MIRROR" ] || return 0
+
+  local f rel
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rel="${f#"$SKILLS_SHIPPED"/}"
+    if [ ! -f "$SKILLS_MIRROR/$rel" ]; then
+      drift "$SKILLS_MIRROR/$rel" \
+"skill file \`$rel\` ships in $SKILLS_SHIPPED but is missing from the $SKILLS_MIRROR mirror." \
+"copy it: cp $f $SKILLS_MIRROR/$rel. devseed loads its skills from the mirror, so a skill that exists only in the plugin is one devseed itself never runs -- and an unrun skill is an unverified one."
+    elif ! cmp -s "$f" "$SKILLS_MIRROR/$rel"; then
+      drift "$SKILLS_MIRROR/$rel" \
+"skill file \`$rel\` differs between $SKILLS_SHIPPED and the $SKILLS_MIRROR mirror." \
+"re-copy from the shipped file, which is the source of truth: cp $f $SKILLS_MIRROR/$rel. These two must be byte-identical -- unlike the hook wiring there is no path difference to justify any divergence, so what devseed runs would otherwise stop matching what it ships."
+    fi
+  done <<EOF
+$(find "$SKILLS_SHIPPED" -type f 2>/dev/null | sort)
+EOF
+
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rel="${f#"$SKILLS_MIRROR"/}"
+    [ -f "$SKILLS_SHIPPED/$rel" ] && continue
+    drift "$f" \
+"skill file \`$rel\` exists in the $SKILLS_MIRROR mirror but not in $SKILLS_SHIPPED." \
+"delete it, or move it into $SKILLS_SHIPPED so it ships. A skill devseed runs but does not ship is a procedure its consumers do not get, tested only here."
+  done <<EOF
+$(find "$SKILLS_MIRROR" -type f 2>/dev/null | sort)
+EOF
+}
+
 # ---------------------------------------------------------------------------
 
 check_duplication
@@ -604,6 +653,7 @@ check_orphans
 check_superseded
 check_hook_parity
 check_agent_parity
+check_skill_parity
 
 if [ "$FOUND" -gt 0 ]; then
   printf '\nGATE FAIL [%s]: %d drift finding(s) above. The documents and the repository disagree.\n' \

@@ -38,9 +38,25 @@ sanctioned constraint.
 
 ## File structure as it stands
 
+A tree of the directories that matter, one line of purpose each. Not
+exhaustive — omit anything a reader can infer. Update it when it changes.
+
+The gate parses this block, so its shape is load-bearing: indentation picks the
+parent, and the first run of two or more spaces ends the path column and begins
+the comment. Every path named here must exist, and every top-level directory
+that exists must appear here.
+
 ```
-<!-- A tree of the directories that matter, one line of purpose each. Not
-     exhaustive: omit anything a reader can infer. Update when it changes. -->
+.claude/
+  rules/                           the rule files; one concern each
+  activity.jsonl                   append-only audit log, machine-written
+DESIGN.md                          constitution; amended only via §6
+CLAUDE.md                          this file — current state
+DECISIONS.md                       ADR log + spec gaps observed
+TASKS.md                           backlog, one task per commit
+gate.sh                            no-op; the real gate ships in the plugin
+.gitignore
+.gitattributes                     forces LF for *.sh on checkout
 ```
 
 ## Build rules

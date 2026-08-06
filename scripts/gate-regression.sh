@@ -209,6 +209,63 @@ scaffold_docs
 [ "$?" = 2 ] && ok "budget: CLAUDE.md over ceiling rejected (exit 2)" \
              || bad "budget: CLAUDE.md over ceiling -- wanted exit 2"
 
+# ---------------------------------------------------------------------------
+# Mirror parity (agents and skills). Both compare a shipped directory against a
+# devseed-local mirror by exact byte equality, in both directions.
+#
+# These get cases because the guard's own failure mode is silence: each opens
+# with `[ -d ... ] || return 0`, so a mirror deleted wholesale disables the
+# check rather than failing it. Without a case that FORCES a mismatch, a future
+# edit that makes either return early passes this regression unnoticed.
+
+drift_mirror() {           # want desc needle env...
+  local want="$1" desc="$2" needle="$3"; shift 3
+  local out got
+  out="$( cd "$WORK" && env "$@" bash "$DRIFT" 2>&1 )"; got=$?
+  if [ "$got" = "$want" ]; then ok "$desc (exit $got)"; else bad "$desc -- wanted exit $want, got $got"; fi
+  [ "$got" != 1 ] || bad "$desc RETURNED 1 -- exit 1 does not block and must never be returned"
+  if [ -n "$needle" ]; then
+    case "$out" in
+      *"$needle"*) ok "$desc -- names '$needle'" ;;
+      *)           bad "$desc -- output does not name '$needle'"; printf '%s\n' "$out" | sed 's/^/        /' ;;
+    esac
+  fi
+}
+
+for KIND in agents skills; do
+  case "$KIND" in
+    agents) SHIP_VAR=DRIFT_AGENTS_SHIPPED; MIRR_VAR=DRIFT_AGENTS_MIRROR; REL=probe.md ;;
+    skills) SHIP_VAR=DRIFT_SKILLS_SHIPPED; MIRR_VAR=DRIFT_SKILLS_MIRROR; REL=probe/SKILL.md ;;
+  esac
+
+  # Nested under docs/, which scaffold_docs already creates and documents --
+  # a new top-level directory would trip the reverse-staleness check instead
+  # and the case would pass for the wrong reason.
+  SHIP="docs/ship"; MIRR="docs/mirror"
+
+  # Identical -> clean.
+  scaffold_docs
+  mkdir -p "$(dirname "$WORK/$SHIP/$REL")" "$(dirname "$WORK/$MIRR/$REL")"
+  printf 'body\n' > "$WORK/$SHIP/$REL"; cp "$WORK/$SHIP/$REL" "$WORK/$MIRR/$REL"
+  drift_mirror 0 "$KIND parity: identical mirror passes" "" \
+    "$SHIP_VAR=$SHIP" "$MIRR_VAR=$MIRR"
+
+  # Contents differ -> caught.
+  printf 'drifted\n' >> "$WORK/$MIRR/$REL"
+  drift_mirror 2 "$KIND parity: differing mirror rejected" "$REL" \
+    "$SHIP_VAR=$SHIP" "$MIRR_VAR=$MIRR"
+
+  # Present in shipped, absent from mirror -> caught.
+  rm -f "$WORK/$MIRR/$REL"
+  drift_mirror 2 "$KIND parity: file missing from mirror rejected" "$REL" \
+    "$SHIP_VAR=$SHIP" "$MIRR_VAR=$MIRR"
+
+  # Present in mirror, absent from shipped -> caught.
+  cp "$WORK/$SHIP/$REL" "$WORK/$MIRR/$REL"; rm -f "$WORK/$SHIP/$REL"
+  drift_mirror 2 "$KIND parity: mirror-only file rejected" "$REL" \
+    "$SHIP_VAR=$SHIP" "$MIRR_VAR=$MIRR"
+done
+
 echo
 echo "summary: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 2
