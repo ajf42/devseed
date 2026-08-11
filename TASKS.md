@@ -247,7 +247,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `/task` and never in the gate. `DESIGN.md` §5 gains a short subsection
   stating the gate is the contract between local and CI, and that divergence
   is a defect, not a reason for a second gate.
-- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `00077f8`
 - **Note:** Resolves SG-0003's CI half: devseed's own CI checks out devseed
   itself — the plugin's source — so it calls `gate.sh` by its repo-relative
   path directly. Neither a vendored copy nor `${CLAUDE_PLUGIN_ROOT}` is
@@ -269,7 +270,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   and Prompt 8 does not say to change that distinction. Verifying the test
   runner and linter are present delegates to `gate.sh --fast` rather than
   reimplementing checks 1–3's detection a second time.
-- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `00077f8`
 
 ## T-026 — Headless verification path
 
@@ -282,7 +284,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   the GitHub Actions job summary. Requires an API credential the workflow does
   not supply — flagged in the workflow file and in DECISIONS.md rather than
   invented, since devseed has no secret to give it.
-- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `00077f8`
 
 ## T-027 — Commit provenance trailer
 
@@ -295,7 +298,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `Session-Id` is machine-sourced (`$CLAUDE_CODE_SESSION_ID`), not invented by
   the agent, and is what makes a commit joinable to `.claude/activity.jsonl`
   by `session_id`.
-- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `00077f8`
 - **Deviation from convention:** T-009, T-025, T-026 and T-027 land in one
   commit, not four. Put to the human when all four were built together as one
   coherent diff; the human chose one commit over the convention's default,
