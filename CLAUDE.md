@@ -54,6 +54,12 @@ plugin installed into other projects. See ADR-0001.
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
   anything under `gates/`.
+- **CI parity** (T-009): `.github/workflows/gate.yml` calls
+  `plugins/governed-dev/gates/gate.sh` directly. Settles SG-0003 for
+  devseed's own CI only (ADR-0020) — a consumer's CI stays open.
+  `preflight.sh` now installs `jq` under `$CI` (ADR-0019). `audit.yml`
+  (T-026) runs the auditor headlessly on a schedule; **not yet exercised** —
+  no `ANTHROPIC_API_KEY` secret yet, plus two unverified details (ADR-0021).
 - **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
   `hooks.json` wire the gate and the agent boundaries into the lifecycle:
   `Stop` runs the full gate and blocks the turn ending on failure (the
@@ -79,6 +85,8 @@ plugin installed into other projects. See ADR-0001.
   then commits — the only thing that commits; `adr` appends a decision entry;
   `resume` reconstructs state from the ledger, changing nothing. Mirrored to
   `.claude/skills/`, a third mirror on the hooks/roster reasoning (ADR-0016).
+  `task` now trailers commits with agent type, session, task id, model
+  (T-027, ADR-0022), closing SG-0010.
 - **The boundary's own regression:** `bash scripts/boundary-regression.sh`.
   73 synthetic `PreToolUse` events. Every defect found in that hook so far was
   invisible to inspection — run it after touching `boundary.sh` or any
@@ -122,8 +130,8 @@ plugin installed into other projects. See ADR-0001.
 - Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
   tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
   Known limits in §5. Verified against a scratch project that does have tests.
-- `templates/gate.sh` is still a placeholder — whether consumers vendor their
-  own copy is open as SG-0003, and CI (T-009) forces the answer.
+- `templates/gate.sh` is still a placeholder. T-009 answered SG-0003 for
+  devseed's own CI (ADR-0020); the consumer half stays open.
 - `plugins/governed-dev/templates/` holds structural skeletons only, with no
   project-specific content by design.
 - Repository visibility is **public**; private was required. `gh` is not
@@ -148,6 +156,9 @@ plugin installed into other projects. See ADR-0001.
 ## File structure as it stands
 
 ```
+.github/workflows/
+  gate.yml                         CI parity: calls gate.sh directly (T-009)
+  audit.yml                        scheduled headless auditor (T-026, open items)
 .claude-plugin/marketplace.json    marketplace "ajf42-devtools"
 .claude/
   settings.json                    devseed's OWN hook wiring (ADR-0011)
@@ -192,7 +203,7 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
   hooks/                           THE LIFECYCLE WIRING — see its README.md
     hooks.json                     8 hooks; carries the path conventions
     lib.sh                         stdin JSON, jq guard, root/gate/state paths
-    preflight.sh   Setup           reports missing jq, git, gate, bash-on-PATH
+    preflight.sh   Setup           installs jq under CI, else reports (T-025)
     orient.sh      SessionStart    briefs the session; flags state disagreement
     boundary.sh    PreToolUse      denies writes across an agent boundary
     fast-gate.sh   PostToolUse     gate --fast on source edits (asyncRewake)

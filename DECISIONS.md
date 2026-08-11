@@ -1214,6 +1214,223 @@ tasks".
 
 ---
 
+## ADR-0019 — `preflight.sh` installs under CI, still only reports on a
+developer machine
+
+- **Date:** 2026-08-11
+- **Status:** Proposed — built, not yet run in anger; revisit if this is wrong
+
+### Context
+
+Prompt 8 (T-025) asks the `Setup` hook to *install* dependencies, not merely
+detect them, "so a fresh clone or a CI container becomes gate-ready in one
+command." The existing `preflight.sh` only ever reported and advised. The
+prompt does not say whether install-on-detect should also apply to an
+interactive developer session, and that is not a neutral gap: a Setup hook
+that silently runs a package manager on someone's own machine is a materially
+different act than the same behaviour inside a disposable CI container nobody
+is sitting at.
+
+**Alternatives considered:**
+
+- **Install everywhere, CI or not.** Rejected: `Setup` fires on `claude
+  --init-only` and `-p --init`, both explicit developer-invoked actions, but
+  "explicit" is not the same as "consented to a package manager write." A
+  human running `--init-only` to prepare a project has not necessarily agreed
+  to `sudo apt-get install`, and the existing report-and-advise behaviour
+  already works and is tested.
+- **Never auto-install; require a human to run the printed command.**
+  Rejected: it satisfies safety but not the prompt's actual ask — "a CI
+  container becomes gate-ready in one command" specifically names the
+  unattended case Prompt 8 wants solved.
+- **Install only under `$CI`.** Chosen. `$CI` is a convention GitHub Actions,
+  GitLab CI, and most other CI systems already set, so no new signal needed
+  inventing, and it draws the line exactly where "disposable, unattended
+  container" stops being true.
+
+### Decision
+
+`preflight.sh` installs `jq` via `apt-get` when `$CI` is set and `apt-get` is
+on `PATH`; otherwise it reports and advises, unchanged from before. Verifying
+the test runner and linter are present is delegated to `gate.sh --fast`
+rather than re-implemented, so "what counts as declared tooling" has exactly
+one definition (checks 1–3), not two drifting copies.
+
+### Consequences
+
+- Non-Linux CI runners (or ones without `apt-get`) fall back to report-only,
+  silently — `have apt-get` is the only gate on the install path. Untested
+  against anything but a GitHub Actions `ubuntu-latest` runner.
+- `preflight.sh` now runs the full declared build/test/lint on every `Setup`
+  event, not just a presence probe. Heavier than "present," but avoids a
+  second, narrower detection implementation. Revisit if this makes `--init`
+  noticeably slow on a real project with a real suite.
+- `git` and bash-on-PATH stay report-only in every environment; Prompt 8 named
+  installation for "jq, the test runner, and the linter," not for `git`
+  itself.
+
+---
+
+## ADR-0020 — devseed's own CI needs neither a vendored `gate.sh` nor
+`${CLAUDE_PLUGIN_ROOT}`
+
+- **Date:** 2026-08-11
+- **Status:** Accepted
+
+### Context
+
+T-009 required resolving SG-0003's CI half: `hooks.json` locates the gate via
+`${CLAUDE_PLUGIN_ROOT}`, which does not resolve outside a Claude Code session,
+so CI needs a different way to find `gate.sh`.
+
+**Alternatives considered:**
+
+- **Vendor a copy of `gate.sh` for CI to call.** Rejected: a second copy of a
+  multi-file gate is exactly the drift ADR-0002 already named as this layout's
+  sharpest cost, and devseed already refuses to do this for consumer projects
+  (SG-0003's bootstrap half).
+- **Install the plugin in the CI container before running it**, e.g. `claude
+  plugin marketplace add` + `install`. Rejected as unnecessary complexity and
+  circularity for devseed's own CI specifically: this repository already *is*
+  `plugins/governed-dev/`'s source. Installing devseed's plugin into a
+  checkout of devseed to find a script that already sits at a known
+  repo-relative path solves a problem devseed's own CI does not have.
+- **Call `plugins/governed-dev/gates/gate.sh` by its repo-relative path.**
+  Chosen. Matches `hooks/lib.sh`'s own `hook_gate()`, which already prefers
+  the sibling path over `${CLAUDE_PLUGIN_ROOT}` for the same reason (see its
+  comment: devseed dogfoods against the working tree, not the installed,
+  possibly-stale copy).
+
+### Decision
+
+`.github/workflows/gate.yml` checks out devseed and runs `bash
+plugins/governed-dev/gates/gate.sh` directly. No vendoring, no plugin install
+step, no `${CLAUDE_PLUGIN_ROOT}`.
+
+### Consequences
+
+- Settles SG-0003 **for devseed's own CI only**. A consumer project's CI truly
+  does not have the plugin's source checked out, so this reasoning does not
+  transfer, and that half of SG-0003 is explicitly left open in its own entry
+  rather than closed by implication.
+- CI platform is GitHub Actions, unstated by any prompt but an obvious
+  consequence of `github.com/ajf42/devseed` already being where this repo
+  lives (`CLAUDE.md`).
+
+---
+
+## ADR-0021 — Headless auditor runs via `anthropics/claude-code-action`,
+prompted rather than flagged into identity
+
+- **Date:** 2026-08-11
+- **Status:** Proposed — unverified in three specific ways, named below;
+  revisit before trusting this workflow to actually run
+
+### Context
+
+T-026 asks for a scheduled, unattended run of the auditor agent. Research
+(via the `claude-code-guide` subagent) found an official
+`anthropics/claude-code-action`, and confirmed **no CLI or Action flag exists
+to make a headless run assume a specific pre-defined subagent's identity** —
+the only mechanism is prompting normally and trusting Claude to delegate via
+its own Task tool, exactly what an interactive session already does when
+`task/SKILL.md` says "invoke [the auditor] directly."
+
+**Alternatives considered:**
+
+- **Wait until subagent-identity invocation is confirmed possible**, rather
+  than ship something resting on an unverified mechanism. Rejected for this
+  pass: Prompt 8 asked for the workflow, and the same trust-the-prompt
+  mechanism already underlies every other headless/interactive invocation of
+  the auditor in this repository — this is not a weaker guarantee than what
+  already exists, just a newly *unattended* instance of the same one.
+- **Raw `claude -p` CLI instead of the official Action**, for direct control
+  over output capture. Rejected for this pass: the exact flags (`-p` output
+  format, permission-skip mechanism, npm package name) were not confirmed
+  before this work paused, and fabricating exact CLI syntax into a CI file
+  that will not be exercised until the next scheduled run is worse than using
+  the confirmed, documented Action entrypoint.
+
+### Decision
+
+`.github/workflows/audit.yml` uses `anthropics/claude-code-action@v1` with a
+prompt that restates the auditor's own brief and a `claude_args` tool
+allowlist (`Read,Grep,Glob,Bash`) as defense in depth alongside the prompt
+itself — belt and suspenders, not a hard boundary, since no hard boundary is
+available headlessly.
+
+### Consequences — three things to verify before trusting this workflow
+
+1. **No `ANTHROPIC_API_KEY` (or `CLAUDE_CODE_OAUTH_TOKEN`) secret exists yet.**
+   The workflow references `secrets.ANTHROPIC_API_KEY` and will fail closed
+   until one is added — not silently invented here.
+2. **`steps.auditor.outputs.result` is a guess** at the Action's output field
+   name, not confirmed against its actual documented outputs. If wrong, the
+   job summary posts empty rather than failing loudly — worth an explicit
+   check the first time this runs.
+3. **Whether `$GITHUB_STEP_SUMMARY` is reachable from inside the Action's own
+   sandboxed tool calls is unconfirmed.** Written to avoid depending on the
+   answer — the Action's result becomes a step output, and a separate plain
+   shell step does the appending — but if the Action's actual output shape
+   differs from (2), both problems compound.
+
+Also open, structurally rather than as a bug: GitHub disables scheduled
+workflows after 60 days of repository inactivity. `workflow_dispatch` is
+wired as a manual fallback; nothing in this file prevents the schedule itself
+from going quiet.
+
+---
+
+## ADR-0022 — Commit trailer's `Agent-Type` is always `main`
+
+- **Date:** 2026-08-11
+- **Status:** Accepted
+
+### Context
+
+T-027 (closing SG-0010) asks every `/task`-made commit to carry a trailer
+naming, among other fields, the agent type. But four agents genuinely
+contribute to one task — spec-guardian, implementer, reviewer, scribe — and
+none of them holds the tool that runs `git commit`; `/task` itself does, on
+the main thread, which SG-0005 already notes carries no `agent_type` of its
+own within this repository's boundary model.
+
+**Alternatives considered:**
+
+- **Attribute to whichever agent wrote the most lines**, e.g. `implementer`
+  for ordinary tasks. Rejected: arbitrary (what counts as "most"?), and wrong
+  for a task that is mostly a scribe or reviewer action.
+- **List all four agents that ran**, e.g.
+  `Agent-Type: spec-guardian,implementer,reviewer,scribe`. Rejected: true but
+  low-signal — it would read the same on nearly every commit, telling a
+  reader nothing they could not already assume from "this repo uses the
+  four-agent loop."
+- **`main`.** Chosen: it is simply the honest answer to "what made this git
+  commit call" — matching `activity.sh`'s own existing default
+  (`${AGENT:-main}`) for events with no subagent context — and it does not
+  discard per-agent attribution, because `Session-Id` already joins the
+  commit to every `SubagentStop` line in `.claude/activity.jsonl` for that
+  session, each carrying its own real `agent_type`.
+
+### Decision
+
+Every `/task` commit trailer reads `Agent-Type: main`. Per-agent attribution
+for a given task is recovered by joining `.claude/activity.jsonl` on the
+commit's `Session-Id`, not by varying this field.
+
+### Consequences
+
+- The field is low-variance by design — expect to see `main` on every commit
+  `/task` makes. Its value is ruling out *other* processes (a human commit, a
+  future non-`/task` automation), not distinguishing among the four agents.
+- This makes `.claude/activity.jsonl` load-bearing for the very question the
+  trailer's introduction was meant to answer ("which agent wrote this"). If
+  `activity.jsonl` is ever pruned or goes missing for a session, that
+  session's commits keep their `Session-Id` but lose what it would have
+  joined to.
+
+---
+
 ## Spec gaps observed
 
 Assumptions made where the spec was silent, per
@@ -1277,10 +1494,22 @@ no secrets, but that holds only as long as the content stays that way. If the
 end condition is never recorded, "temporary" decays into "public", which is the
 same drift this entry was rewritten to remove.
 
-### SG-0003 — Whether consumer projects vendor their own `gate.sh` *(bootstrap half settled)*
+### SG-0003 — Whether consumer projects vendor their own `gate.sh` *(bootstrap and devseed's own CI both settled; consumer CI still open)*
 
-- **Date:** 2026-07-31 (narrowed 2026-08-06)
-- **Status:** Open, narrowed — bootstrap half settled, CI half still open
+- **Date:** 2026-07-31 (narrowed 2026-08-06, CI half narrowed 2026-08-11)
+- **Status:** Open, narrowed further — bootstrap half and devseed's own CI
+  settled; whether a *consumer* project's CI needs a vendored copy is still
+  open
+
+**Update, 2026-08-11 (T-009/Prompt 8).** Devseed's own CI does not need
+`${CLAUDE_PLUGIN_ROOT}` at all: `.github/workflows/gate.yml` checks out
+devseed itself — the plugin's source — and calls `plugins/governed-dev/gates/
+gate.sh` by its repo-relative path, the same way `hook_gate()` prefers the
+sibling path over the env var (`hooks/lib.sh`). Neither vendoring nor
+installing the plugin is needed here. This settles the question **for
+devseed's own CI only**. A consumer project's CI is a different situation —
+the plugin genuinely is not checked out there — and this task never exercises
+that case, so the general question stands.
 
 **Update, 2026-08-06.** The bootstrap half is settled: bootstrap copies
 `templates/gate.sh` verbatim as a documented no-op and does not vendor a
@@ -1308,12 +1537,21 @@ needs, would bake in the answer before the question is asked.
 **Depends on this:** T-009 (CI) cannot be built until it is settled, and T-008
 (bootstrap) needs to know whether to copy a gate into the target project.
 
-### SG-0004 — T-006 and T-009 criteria were reconstructed, not transcribed *(T-006 half resolved in ADR-0012)*
+### SG-0004 — T-006 and T-009 criteria were reconstructed, not transcribed *(both halves resolved)*
 
 - **Date:** 2026-07-31
-- **Status:** T-006 half **closed** on 2026-08-05 — the source prompt arrived and
-  the reconstruction was checked against it, as this entry required. T-009 half
-  still open.
+- **Status:** **Closed** — T-006 half closed 2026-08-05; T-009 half closed
+  2026-08-11, the real Prompt 8 arrived and TASKS.md was rewritten against it.
+
+**Outcome for T-009.** The reconstruction's guess — "the no-side-effects rule
+and the unresolved `${CLAUDE_PLUGIN_ROOT}` question" — covered only the first
+of Prompt 8's five deliverables (the CI workflow itself, T-009). The other
+four were invisible to a title-only guess: the `Setup` hook gaining install
+behaviour (T-025), a scheduled headless auditor run (T-026), the commit
+provenance trailer (T-027, closing SG-0010), and a `DESIGN.md` §5 subsection.
+TASKS.md is rewritten to carry all five; nothing here was dropped on review
+the way T-006's invented criterion was — the reconstruction was simply
+incomplete, not wrong where it went.
 
 **Outcome for T-006.** The reconstruction was *partly* wrong, which is the
 result this entry existed to make visible. Three criteria the source specifies
@@ -1520,20 +1758,29 @@ at all.
 ### SG-0010 — The commit trailer was specified as "per Prompt 8 §4", which does not exist
 
 - **Date:** 2026-08-06
-- **Status:** Open — needs human decision
+- **Status:** **Closed** 2026-08-11 (T-027) — Prompt 8 arrived and specified
+  the trailer directly: agent type, session id, task id, model.
 
-The `/task` skill must append a trailer to every commit it makes. Prompt 8 is
-CI (T-009) and has not been written, so §4 of it cannot be read.
+**Outcome.** `/task`'s commit step (`task/SKILL.md`, both copies) now appends
+`Agent-Type`, `Session-Id`, `Task-Id`, `Model` alongside the existing
+`Co-Authored-By` line, rather than the "read `git log` and match it"
+placeholder this entry recorded. See ADR-0022 for why `Agent-Type` is always
+`main`. Every commit `/task` made **before** this — everything up to and
+including `eb489bd` — used the placeholder convention (`Co-Authored-By` only)
+and is not retroactively relabeled; the assumption below was live and correct
+for its time.
 
-**Assumed:** `/task` instructs reading `git log` and matching the convention
-the repository already uses, rather than inventing a format Prompt 8 would
-then have to match. Recorded at the point of contact in
-`plugins/governed-dev/skills/task/SKILL.md`.
+**Assumed (original, kept for the record):** `/task` instructs reading `git
+log` and matching the convention the repository already uses, rather than
+inventing a format Prompt 8 would then have to match. Recorded at the point
+of contact in `plugins/governed-dev/skills/task/SKILL.md`.
 
-**Depends on this:** if Prompt 8 §4 specifies a different trailer, every
-commit `/task` made before then used the wrong one. Note the marker is in a
-`.md` file, which gate check 6 skips by design, so the gate will not catch it
-going stale.
+**Depended on this:** if Prompt 8 §4 specified a different trailer, every
+commit `/task` made before then used the wrong one. It did — the real Prompt 8
+adds three fields the placeholder never had — but "wrong" here means
+"superseded," not "in violation of a spec that existed at the time." Note the
+marker was in a `.md` file, which gate check 6 skips by design, so the gate
+never would have caught it going stale on its own.
 
 ### SG-0011 — `templates/rules/` duplicates `.claude/rules/` with no guard
 

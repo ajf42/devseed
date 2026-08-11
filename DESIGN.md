@@ -147,6 +147,15 @@ to match the script is a correction, not an amendment, and does not go through
   the runner is absent, that is exit 2, not a skip. Silent degradation is the
   failure mode being engineered against.
 
+### CI parity
+
+The gate is the single contract between a local run and a CI run. CI invokes
+`plugins/governed-dev/gates/gate.sh` itself — the identical script, not a
+second implementation of these checks. If local and CI ever disagree about a
+change, that disagreement is a defect in the gate, to be fixed in the gate, not
+a reason to keep two definitions of "done" or to trust whichever one currently
+says pass.
+
 ### What it enforces
 
 Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.

@@ -65,15 +65,33 @@ without saying what you changed.
 Only on exit 0.
 
 Message is `<scope>: <imperative description>`, body explaining *why* rather
-than restating the diff, then the trailer.
+than restating the diff, then the trailer (T-027, resolving SG-0010 — the
+format was previously unspecified; this is what Prompt 8 gave it):
 
-<!-- TODO(spec): SG-0010 — the trailer format was specified as "per Prompt 8 §4",
-     which does not exist: Prompt 8 is CI (T-009) and has not been written.
-     Assumed the convention already visible in git history rather than inventing
-     a format that Prompt 8 would then have to match. Recorded in DECISIONS.md. -->
+```
+Co-Authored-By: <model display name> <noreply@anthropic.com>
+Agent-Type: main
+Session-Id: <this session's id>
+Task-Id: <the T-NNN this run picked>
+Model: <model id, e.g. claude-sonnet-5>
+```
 
-Take the trailer from what the repository already does — read `git log` and
-match it. Do not invent one.
+- **`Session-Id`** comes from `$CLAUDE_CODE_SESSION_ID`. Read it; do not
+  invent one. If it is unset, write `unknown` — a fabricated session id is
+  worse than an honest gap, because nothing marks it as fabricated and it
+  would falsely join to unrelated `activity.jsonl` entries later.
+- **`Agent-Type` is `main`**, always — not the name of whichever of the four
+  loop agents touched the most lines. `/task` itself, running on the main
+  thread, is what executes `git commit`; the implementer, reviewer and scribe
+  never hold that tool. Per-agent attribution is not lost by this: it is
+  recoverable by joining `.claude/activity.jsonl` on this same `Session-Id`,
+  where each subagent's own `SubagentStop` entry already carries its real
+  `agent_type`. See ADR-0022 if this reads as surprising.
+- **`Task-Id`** is the task this run of `/task` picked at the start.
+- **`Model`** is the model actually running this session, in its SDK id form.
+  Nothing exposes it as an environment variable, so — same as
+  `Co-Authored-By` already did before this trailer existed — the agent states
+  its own identity directly rather than a script deriving it.
 
 **Leave the task `in-progress`, not `done`.** A task's commit hash does not
 exist until the commit completing it has been made, so it cannot be recorded in

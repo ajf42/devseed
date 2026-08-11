@@ -1,0 +1,70 @@
+name: audit
+
+# T-026 -- headless verification path. Runs the auditor unattended, on a
+# schedule, and posts its DRIFT REPORT where a human will see it without
+# opening a session. Safe to run unattended because the auditor is read-only
+# (.claude/agents/auditor.md: tools: Read, Grep, Glob, Bash, no write tools)
+# and "proposes nothing and fixes nothing" by its own definition.
+#
+# OPEN, UNVERIFIED (see DECISIONS.md ADR-0021 and the T-026 note in TASKS.md):
+#   - Requires an ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN) repo secret
+#     this workflow does NOT supply. Nothing here can run until one is added.
+#   - There is no CLI/action flag that puts a headless run INTO a specific
+#     named subagent's identity. This prompts Claude with the auditor's own
+#     brief and trusts it to follow it -- the same mechanism `/task` already
+#     uses to invoke the auditor from an interactive session (task/SKILL.md),
+#     not a new or weaker guarantee, but worth naming: the read-only property
+#     here rests on the prompt plus `claude_args` tool allowlist below, not on
+#     a hard "this IS the auditor agent" boundary.
+#   - Whether $GITHUB_STEP_SUMMARY is writable from inside the action's own
+#     tool sandbox (as opposed to from a separate shell step after it) is
+#     UNCONFIRMED. Written the more conservative way here: the action's own
+#     result becomes a step output, and a plain shell step appends that to
+#     the summary, so nothing depends on the sandboxed prompt reaching outside
+#     its own tool calls.
+#   - `steps.auditor.outputs.result` (below) is this workflow's GUESS at the
+#     action's output field name for the run's final text. Not verified
+#     against the action's actual documented outputs -- check
+#     anthropics/claude-code-action's README before trusting this job to
+#     produce a non-empty summary rather than silently posting a blank one.
+#   - GitHub disables scheduled workflows automatically after 60 days with no
+#     repository activity. A quiet devseed would need `workflow_dispatch`
+#     (below) or a manual re-enable, not a fix in this file.
+
+on:
+  schedule:
+    - cron: "0 13 * * 1"   # Mondays 13:00 UTC. Arbitrary; revisit.
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the auditor headlessly
+        id: auditor
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --allowedTools "Read,Grep,Glob,Bash" --max-turns 15
+          prompt: |
+            Follow .claude/agents/auditor.md exactly: you are read-only and you
+            propose nothing and fix nothing. Run:
+              bash plugins/governed-dev/gates/drift.sh
+              bash plugins/governed-dev/gates/gate.sh
+            Then produce the DRIFT REPORT in the exact format that file
+            defines (STRUCTURAL / STALE / CLEAN sections), and nothing else.
+
+      - name: Post the report to the job summary
+        if: always()
+        run: |
+          {
+            echo "## Audit report — $(date -u '+%Y-%m-%d')"
+            echo '```'
+            printf '%s\n' "${{ steps.auditor.outputs.result }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

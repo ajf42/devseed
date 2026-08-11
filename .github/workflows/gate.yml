@@ -1,0 +1,34 @@
+name: gate
+
+# T-009 -- CI parity. This workflow calls the SAME plugins/governed-dev/gates/gate.sh
+# that runs locally via the Stop and PostToolUse hooks. No forked copy, no
+# reimplemented checks -- see DESIGN.md §5 "CI parity". If a change ever fails
+# here but passes locally (or vice versa), that is a defect in the gate itself,
+# to be fixed in gate.sh, not patched around in this file.
+#
+# SG-0003 (CI half): devseed's own CI checks out devseed itself -- the plugin's
+# source -- so gate.sh is called by its repo-relative path directly. Neither a
+# vendored copy nor ${CLAUDE_PLUGIN_ROOT} is needed here. See DECISIONS.md
+# ADR-0020; a CONSUMER project's CI is a different situation and stays open.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # T-025: preflight.sh is the same script the Setup hook runs locally.
+      # Under $CI it installs missing dependencies (jq) rather than only
+      # reporting them, so this is the "one command" that makes a fresh
+      # checkout gate-ready -- not a second, CI-only setup recipe.
+      - name: Setup (install and verify gate dependencies)
+        run: bash plugins/governed-dev/hooks/preflight.sh
+
+      - name: Gate (the single definition of done)
+        run: bash plugins/governed-dev/gates/gate.sh

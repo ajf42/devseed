@@ -235,18 +235,72 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 
 ## T-009 — CI parity
 
-- **Description:** Run the same gate in CI that runs locally, so "passes on my
-  machine" and "passes in CI" cannot diverge. CI calls `gate.sh` itself, not a
-  reimplementation.
-- **Acceptance:** CI invokes the identical `gate.sh` — no forked copy, no
-  reimplemented checks; a change that fails locally fails CI and vice versa; the
-  gate's no-side-effects rule holds under CI, which is why commit-and-push lives
-  in `/task` and never in the gate. Resolving **SG-0003** is a prerequisite:
-  `${CLAUDE_PLUGIN_ROOT}` does not resolve where the plugin is not installed, so
-  CI either vendors a copy or installs the plugin first, and that question is
-  still open.
-- **Status:** todo (Prompt 8)
-- **Note:** criteria reconstructed, not transcribed — see SG-0004.
+- **Description:** Run the identical gate in CI that runs locally, so "passes
+  on my machine" and "passes in CI" cannot diverge. A GitHub Actions workflow
+  calls `plugins/governed-dev/gates/gate.sh` on every PR — the same script, not
+  a reimplementation. Source: Prompt 8, transcribed in full 2026-08-11,
+  resolving SG-0004's T-009 half.
+- **Acceptance:** `.github/workflows/gate.yml` invokes the identical
+  `gate.sh` — no forked copy, no reimplemented checks; a change that fails
+  locally fails CI with the same message and vice versa; the gate's
+  no-side-effects rule holds under CI, which is why commit-and-push lives in
+  `/task` and never in the gate. `DESIGN.md` §5 gains a short subsection
+  stating the gate is the contract between local and CI, and that divergence
+  is a defect, not a reason for a second gate.
+- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+- **Note:** Resolves SG-0003's CI half: devseed's own CI checks out devseed
+  itself — the plugin's source — so it calls `gate.sh` by its repo-relative
+  path directly. Neither a vendored copy nor `${CLAUDE_PLUGIN_ROOT}` is
+  needed. This does not answer whether a *consumer* project's CI needs a
+  vendored `gate.sh`; that half of SG-0003 stays open, since devseed's own CI
+  never exercises it.
+
+## T-025 — Setup hook installs dependencies
+
+- **Description:** `preflight.sh` (the `Setup` hook, firing on `claude
+  --init-only` and `-p --init`) currently only *reports* a missing `jq`/`git`/
+  bash-on-PATH; it fixes nothing. Prompt 8 asks for installation, so a fresh
+  clone or a CI container becomes gate-ready in one command.
+- **Acceptance:** In a CI environment (`$CI` truthy), a missing `jq` is
+  installed automatically (`apt-get`) rather than merely reported. On an
+  interactive developer machine, behaviour is unchanged from today — report
+  plus install instructions — since auto-installing on every session start
+  mutates a human's system in a way a disposable CI container does not share,
+  and Prompt 8 does not say to change that distinction. Verifying the test
+  runner and linter are present delegates to `gate.sh --fast` rather than
+  reimplementing checks 1–3's detection a second time.
+- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+
+## T-026 — Headless verification path
+
+- **Description:** A scheduled, unattended run of the auditor agent, posting
+  `drift.sh`'s output. Safe unattended because the auditor is read-only —
+  `tools: Read, Grep, Glob, Bash`, no write capability — and "proposes nothing
+  and fixes nothing" by its own definition (`.claude/agents/auditor.md`).
+- **Acceptance:** `.github/workflows/audit.yml` runs on a cron schedule,
+  invokes `claude -p` with the auditor agent, and posts its DRIFT REPORT to
+  the GitHub Actions job summary. Requires an API credential the workflow does
+  not supply — flagged in the workflow file and in DECISIONS.md rather than
+  invented, since devseed has no secret to give it.
+- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+
+## T-027 — Commit provenance trailer
+
+- **Description:** Every commit `/task` makes carries a trailer recording
+  agent type, session id, task id, and model — resolving **SG-0010**, open
+  since T-008: the trailer was specified as "per Prompt 8 §4," which did not
+  exist until this prompt arrived.
+- **Acceptance:** `/task`'s commit step appends `Agent-Type`, `Session-Id`,
+  `Task-Id`, `Model` trailers alongside the existing `Co-Authored-By` line.
+  `Session-Id` is machine-sourced (`$CLAUDE_CODE_SESSION_ID`), not invented by
+  the agent, and is what makes a commit joinable to `.claude/activity.jsonl`
+  by `session_id`.
+- **Status:** in-progress (Prompt 8; commit hash not yet recorded)
+- **Deviation from convention:** T-009, T-025, T-026 and T-027 land in one
+  commit, not four. Put to the human when all four were built together as one
+  coherent diff; the human chose one commit over the convention's default,
+  the same kind of explicit choice T-018 recorded for its own deviation. All
+  four carry the same commit hash below once recorded.
 
 ## T-010 — Amendment procedure
 

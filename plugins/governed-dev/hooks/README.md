@@ -17,7 +17,7 @@ flags are duplicated — there is one copy of each script.
 
 | Event | Script | Does | Blocks? |
 |---|---|---|---|
-| `Setup` | `preflight.sh` | Reports missing `jq`, `git`, gate, bash-on-PATH | No — cannot |
+| `Setup` | `preflight.sh` | Installs `jq` under CI, reports it elsewhere; verifies `git`, gate, bash-on-PATH, and declared build/test/lint via `gate.sh --fast` (T-025) | No — cannot |
 | `SessionStart` | `orient.sh` | Briefs the session as `additionalContext` | No |
 | `PreToolUse` | `boundary.sh` | Denies writes crossing an agent's boundary | **Yes** |
 | `PostToolUse` | `fast-gate.sh` | `gate.sh --fast` on source edits | No — rewakes |
@@ -80,6 +80,13 @@ That is a degradation and it is deliberate — see ADR-0008.
 `implementer`. `hook_agent_type()` strips the prefix; a boundary matching the
 bare string would evaporate the moment the plugin is installed rather than run
 from a checkout.
+
+**`preflight.sh` means something different called directly.** `Setup`'s exit
+code is only *reported* when the harness runs it — Setup cannot block a
+session. `.github/workflows/gate.yml` (T-009) calls the same script directly
+as a plain CI step, where exit 2 fails the job like any other command. Same
+script, two different consequences for the same exit code, because one caller
+is a harness event and the other is a shell.
 
 **`NotebookEdit` is in the write matchers.** It takes `notebook_path`, not
 `file_path`. A boundary reading only `file_path` has a documented way around it.
