@@ -822,8 +822,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   the implementer's denied set in both mirrored copies; `CLAUDE.md`'s
   structure block updated in the same commit; gate and all three suites pass;
   full matrix green.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `f238b84`
 - **Routes used, per §6:** all corrections, no amendment. Adding the
   index-parity check is a **tightening**, which the ratchet exempts from the
   ADR bar and records as a correction to §5's table. The four DESIGN.md
