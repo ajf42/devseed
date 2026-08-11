@@ -747,3 +747,29 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   and the root-vs-templates warning. Showing the loop was never in its
   acceptance criteria, so this is new work under a new id rather than a
   reopening. Section measured 39 lines, README 134.
+
+## T-038 — Complexity audit before 0.1 (subtraction audit)
+
+- **Description:** The complement of T-028's self-audit. That one asked which
+  DESIGN.md rules lack checks (enforcement gaps); this one asks which checks
+  lack justification (enforcement excess). Score every enforcement mechanism —
+  each gate check, each hook, each mirror and its parity check, the boundary's
+  shell inspection, the circuit breaker, `audit.yml`, and each `drift.sh`
+  sub-check separately — on three questions answered from the record: what
+  real failure it exists to catch, whether it has ever fired outside its own
+  regression suite, and how plausibly it blocks a correct change.
+- **Acceptance:** one ADR carrying the inventory with verdicts (keep /
+  keep-but-simplify / remove) and a false-positive ranking; the mirrors
+  re-justified from scratch rather than defended; ADR-0023's findings cited
+  where they overlap rather than re-litigated; **no new mechanism, check or
+  file created** to resolve any finding; removals proposed to the human, not
+  executed.
+- **Status:** in-progress
+- **Commit:** —
+- **Premises corrected from the record (ADR-0027):** two of the three
+  motivating claims did not survive checking. `drift.sh` did not produce the
+  repository's only production bug — the mawk defect was latent and never
+  fired (ADR-0025); the red CI run was `gate.yml`'s shallow clone. And no
+  TMPDIR/scratch-probe ledger truncation exists anywhere in the record: no
+  commit has ever cut more than fifty lines from any ledger, and both grew
+  monotonically this session. No finding was built on either.
