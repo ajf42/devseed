@@ -637,8 +637,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   full matrix goes green on the next push; no behaviour change on any
   input on any platform already working — correction, not amendment, §6
   ratchet n/a.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `8cd379f`
 
 ## T-032 — Guard the check 5 / drift.sh duplication
 
@@ -653,5 +653,5 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** the assertions run in the suite and fail if either copy
   diverges again on those fixtures; extraction into `gates/lib.sh` stays
   the recorded fallback if they do (ADR-0025's alternatives).
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —

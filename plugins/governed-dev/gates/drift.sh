@@ -387,7 +387,8 @@ EOF
   # The hash regex is check 5's, kept textually identical on purpose: written
   # longhand (7+ hex chars in backticks) because ERE interval expressions like
   # {7,} are not supported by every awk, and on one that lacks them the match
-  # never fires -- every done task would read as hashless (ADR-0025).
+  # never fires -- every done task would read as hashless (ADR-0025). The two
+  # copies are asserted to agree by scripts/gate-regression.sh (T-032).
   local rows task hash lno
   rows="$(awk '
     function flush() { if (t != "" && d == 1) printf "%s\t%s\t%s\n", tl, t, h }

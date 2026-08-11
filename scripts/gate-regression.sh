@@ -270,6 +270,32 @@ for KIND in agents skills; do
     "$SHIP_VAR=$SHIP" "$MIRR_VAR=$MIRR"
 done
 
+# --- T-032: check 5 and drift.sh must agree ----------------------------------
+# drift.sh's check_orphans duplicates check 5's done-task scan deliberately --
+# it also runs standalone, where the rest of the gate may not have run. The
+# copies once drifted on regex dialect (check 5 portable longhand, drift.sh an
+# ERE interval some awks silently never match; ADR-0025) with nothing comparing
+# them. These cases run BOTH copies against the same TASKS.md fixture and
+# demand the same ruling: resolving hash passes both, hashless fails both,
+# fabricated fails both -- the branch the first matrix run actually died in.
+echo
+echo "T-032 -- check 5 and drift.sh rule the same ledger the same way:"
+scaffold
+printf '\n## T-101 — hashed\n\n- **Status:** done\n- **Commit:** `%s`\n' \
+  "$( cd "$WORK" && git rev-parse --short=8 HEAD )" >> "$WORK/TASKS.md"
+( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm "ledger" )
+run_gate  0 "done task with resolving hash: gate (check 5) passes"
+run_drift 0 "done task with resolving hash: drift.sh agrees"
+
+printf '\n## T-102 — hashless\n\n- **Status:** done\n- **Commit:** —\n' >> "$WORK/TASKS.md"
+run_gate  2 "done task with no hash: gate (check 5) rejects"
+run_drift 2 "done task with no hash: drift.sh agrees" "cites no commit hash"
+
+scaffold
+printf '\n## T-103 — fabricated\n\n- **Status:** done\n- **Commit:** `deadbee`\n' >> "$WORK/TASKS.md"
+run_gate  2 "fabricated hash: gate (check 5) rejects"
+run_drift 2 "fabricated hash: drift.sh agrees" "resolves to nothing"
+
 # --- T-029: CI runs the real gate --------------------------------------------
 # The CI-parity rule (DESIGN.md §5) held only because nobody edited a YAML
 # file. One assertion, per the 2026-08 audit closure: the workflow contains
