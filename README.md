@@ -45,6 +45,59 @@ run. See ADR-0006.
 | **Rules** | Document precedence, and what to do at a spec gap: ask, or record the assumption in *both* the code and `DECISIONS.md`. Never invent. |
 | **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, five skills (`bootstrap`, `task`, `adr`, `resume`, `amend`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
 
+## A working session
+
+**Day one — `/governed-dev:bootstrap`**, in a repo with no `DESIGN.md` (if one
+exists it refuses and points you at `/governed-dev:resume`). It reads your
+manifests, lockfiles and test directories, offers its inferences for
+correction, then asks what reading cannot: what this project is, who it is
+explicitly *not* for, what is out of scope, and what exists versus what is
+planned. Decline a question and that section keeps its skeleton comment —
+invented prose is indistinguishable from a real decision within a week. It
+writes the four ledger documents, `.claude/rules/`, `.gitattributes`, a
+placeholder `gate.sh` and an empty `.claude/activity.jsonl`. It does not commit.
+
+**Then `/governed-dev:task`**, which takes the task you name or the first
+`todo`, and runs exactly one task to exactly one commit:
+
+```
+spec-guardian   SANCTIONED — DESIGN.md §4 "In scope"    ← quotes the sentence
+implementer     failing test first, confirmed failing for the right reason
+reviewer        NO FINDINGS                             ← real, expected result
+scribe          CLAUDE.md and TASKS.md updated
+gate            gate: all checks passed.
+commit          <scope>: <description>  + Task-Id / Session-Id / Model trailer
+```
+
+The gate runs before the commit, never after; a non-zero exit stops the run with
+its output quoted, unstaged and unretried. On `main` it commits locally and
+declines to push; the task stays `in-progress`, its hash the next commit's job.
+
+**When the spec is silent, the loop stops.** spec-guardian returns `GAP`, names
+what `DESIGN.md` does not say, and writes out the exact `SG-NNNN` entry it wants
+recorded — which it cannot record itself, holding no write tool. A blocking gap
+comes to you; a non-blocking one proceeds only with a `TODO(spec): SG-NNNN`
+marker at the line of contact, and check 6 fails any marker whose id is missing
+from `DECISIONS.md`. No agent may pick a plausible reading and carry on.
+
+**Next morning, `/governed-dev:resume`.** It runs the orientation script
+`SessionStart` runs, reads the ledger rather than the codebase, and reports what
+is in flight, the open spec gaps by id, and anything `TASKS.md`, git and the
+filesystem disagree about — quoted and unreconciled. It changes nothing.
+
+## What this does not do
+
+The main session thread is **unbounded** (SG-0005). The roster's write
+boundaries bind real subagents, because the hook event carries `agent_type` only
+inside one — and most work happens on the main thread. Checks 1–3 trigger on
+*declared* tooling, so a project declaring no build, tests or linter passes them
+vacuously and says so on stderr: the gate catches declared-but-unrunnable, not
+never-declared. The shell half of the write boundary is syntactic — it stops the
+expedient redirect, not a determined evasion through a variable or a glob
+(ADR-0013). And the reviewer and auditor hold `Bash` permanently; their write
+boundary is best-effort by acceptance rather than by capability, with their
+outputs gated instead (ADR-0024).
+
 ## ⚠ Four filenames exist twice, with opposite roles
 
 This is the sharpest edge in the layout. Check which directory you are in before

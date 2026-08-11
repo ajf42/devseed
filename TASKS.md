@@ -724,3 +724,26 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `owner/repo#ref` shorthand is **not** documented and was deliberately not
   used, since a shorthand that silently resolves to the default branch would
   hand a reader a pinned-looking install that is not pinned.
+
+## T-037 — README: what using devseed actually looks like
+
+- **Description:** `README.md` explained what devseed is, how to install it,
+  and the dual-role filename trap, but never showed a working day. A stranger
+  who installed it got the hooks, the roster and the gate with no picture of
+  the loop. Add one "A working session" section between "What you get" and the
+  dual-role warning — bootstrap's interview and outputs, `/task`'s four-agent
+  loop to a commit, what happens at a spec gap, and `/resume` the next
+  morning — plus a "What this does not do" paragraph drawn from §5's Known
+  limits and the open SG entries.
+- **Acceptance:** every sketch matches what the skills actually do, read
+  first rather than recalled; the section is under 40 lines and the README
+  under 180; the limits paragraph names SG-0005's unbounded main thread, the
+  declared-tooling trigger on checks 1–3, the syntactic shell boundary, and
+  ADR-0024's reviewer/auditor `Bash` acceptance.
+- **Status:** in-progress
+- **Commit:** —
+- **T-023 was already closed** (`25bc1ca`) — it covered the original README:
+  what devseed is, the install pair, the Windows prerequisite, namespacing,
+  and the root-vs-templates warning. Showing the loop was never in its
+  acceptance criteria, so this is new work under a new id rather than a
+  reopening. Section measured 39 lines, README 134.
