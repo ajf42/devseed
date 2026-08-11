@@ -66,8 +66,12 @@ retirement would be destructive and nobody would do it.
 
 ### Multi-author id collisions
 
-Two authors taking "the next unused NNNN" concurrently produce two `ADR-0030`s
-on two branches. Nothing in git prevents it and no check here can: the collision
+Two authors taking "the next unused NNNN" concurrently produce two entries
+claiming the *same* number on two branches. (No literal example id appears in
+this paragraph: the orphan check resolves every `ADR-NNNN` it finds in a tracked
+file, so an illustrative number would have to be a real entry — the same
+self-flagging dodge `gate-regression.sh` and `check-06-spec-gaps.sh` both use.)
+Nothing in git prevents it and no check here can: the collision
 is invisible until the branches meet. The convention, for when it matters: **the
 number is claimed by the merge, not by the writing.** The second branch to merge
 renumbers — its file is renamed and its own citations updated, which is cheap
