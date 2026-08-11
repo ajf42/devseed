@@ -69,7 +69,7 @@ dependency tree, and no application layer — the scaffold *is* the artifact.
 | **Markdown + shell only** | No runtime language. Documents are Markdown; hooks and gates are scripts. | A seed repo must impose zero setup cost on the project that adopts it. Any runtime dependency means the consumer inherits a version, a package manager, and a lockfile before writing a line of their own code. Nothing here needs more than text and a shell. |
 | **`DESIGN.md` as constitution** | Single file, spec authority, amended only via §6. | One file to read to know what the system should be. Splitting intent across many files means no one can answer "is this sanctioned?" without a search, and unsearchable intent is functionally absent. |
 | **`CLAUDE.md` as state, kept separate** | Describes what exists today; expected to go stale. | Merging spec and state into one file makes drift invisible — the document silently rewrites intent to match code. Separation makes disagreement between the two detectable, which is what `precedence.md` acts on. |
-| **`DECISIONS.md`** | Append-only log; includes the "Spec gaps observed" section. | Gives assumptions made under ambiguity a home. Without a destination, `ambiguity.md`'s "record it" instruction has nowhere to land and degrades into "proceed quietly". |
+| **`docs/adr/`, indexed by `DECISIONS.md`** | One append-only file per decision; the index is generated. `DECISIONS.md` also carries the hand-written "Spec gaps observed" section inline. | Gives assumptions made under ambiguity a home. Without a destination, `ambiguity.md`'s "record it" instruction has nowhere to land and degrades into "proceed quietly". Per-file so reading one decision does not cost the whole history (ADR-0029). |
 | **`.claude/rules/`** | Discrete rule files, one concern each, loaded independently. | The core mechanism. A rule embedded in a long `CLAUDE.md` competes for attention and loses it as context fills. A standalone file is addressable, citable in review, and diffable when it changes. |
 | **`.claude/gates/`** | Checks that block on failure. | Advice is optional; a gate is not. Anything that must hold on every change belongs here, not in prose. Definition of what gates exist and what they enforce is §5's job. |
 | **`.claude/hooks/`** | Scripts the harness runs at lifecycle points. | Hooks are executed by the harness, not by the agent's goodwill — the only category of rule that cannot be forgotten mid-session. |
@@ -88,7 +88,8 @@ dependency tree, and no application layer — the scaffold *is* the artifact.
 - `.claude/hooks/` — harness-invoked lifecycle scripts.
 - `.claude/agents/` and `.claude/skills/` — scoped agent and procedure
   definitions, added as genuine need appears.
-- `DECISIONS.md`, including the "Spec gaps observed" section.
+- The decision log — `docs/adr/` plus the `DECISIONS.md` index, including the
+  "Spec gaps observed" section.
 - `CLAUDE.md` describing current repo state.
 - Whatever it takes to copy this scaffold into a new repo and have it work.
 
@@ -168,7 +169,7 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
 | 4 | Working memory current | Files under `src/` changed but `CLAUDE.md` did not |
 | 5 | Task ledger honest | A `## T-NNN` task is marked `done` with no commit hash |
 | 6 | Spec gaps answered | A `TODO(spec)` marker in a changed file cites no `SG-NNNN` id, or cites one absent from `DECISIONS.md` |
-| 7 | Documents match the repository | `CLAUDE.md` names a path that is gone, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; ADR numbering has a hole; a done task's hash fails to resolve (re-checked here so standalone CI runs catch it); a mirrored hook wiring, agent, or skill differs from its shipped copy |
+| 7 | Documents match the repository | `CLAUDE.md` names a path that is gone, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; ADR numbering has a hole; a done task's hash fails to resolve (re-checked here so standalone CI runs catch it); a generated ADR index disagrees with `docs/adr/`; a mirrored hook wiring, agent, or skill differs from its shipped copy |
 
 ### Conventions the gate depends on
 
@@ -270,8 +271,8 @@ on what evidence, and what the edit gave up.
 
 ### The procedure
 
-1. **The ADR comes first** — written and recorded in `DECISIONS.md` before
-   the edit, naming:
+1. **The ADR comes first** — written and recorded as its own file under
+   `docs/adr/` (ADR-0029) before the edit, naming:
    - **the rule**, quoted as currently written;
    - **the specific incident** that showed it wrong. The bar: the rule
      *failed to catch what it existed to catch*, or *caught things it should

@@ -108,8 +108,14 @@ plugin installed into other projects. See ADR-0001.
   assumed (T-035). Published to `github.com/ajf42/devseed`; install loop
   verified end to end from outside this repo (`marketplace add
   ajf42/devseed`, then `install governed-dev@ajf42-devtools`).
-- Ledger documents: this file, [`DECISIONS.md`](DECISIONS.md),
-  [`TASKS.md`](TASKS.md), and `.claude/activity.jsonl`.
+- Ledger documents: this file, [`TASKS.md`](TASKS.md),
+  `.claude/activity.jsonl`, and the ADRs — **one file each under
+  [`docs/adr/`](docs/adr/)** since ADR-0029, with
+  [`DECISIONS.md`](DECISIONS.md) generated from them by
+  `scripts/rebuild-adr-index.sh` and carrying the hand-written spec gaps
+  inline. Retiring an ADR is a `git mv` into `docs/adr/archive/`; ids resolve
+  from either directory forever. Drift check 5 verifies index against
+  directory and never regenerates.
 
 **Not built yet:**
 
@@ -174,8 +180,11 @@ plugin installed into other projects. See ADR-0001.
     delegation.md                  the agent loop; deciders never record
 DESIGN.md                          constitution, all six sections substantive
 CLAUDE.md                          this file
-DECISIONS.md                       ADR log + spec gaps observed
+DECISIONS.md                       GENERATED index over docs/adr/ + spec gaps
 TASKS.md                           backlog, one task per commit
+docs/adr/                          one file per ADR, NNNN-slug.md (ADR-0029)
+  archive/                         retired ADRs; ids still resolve forever
+scripts/rebuild-adr-index.sh       regenerates DECISIONS.md; the gate never runs it
 scripts/gate-regression.sh         asserts gate behaviour; devseed-only
 scripts/boundary-regression.sh     asserts boundary.sh denials; devseed-only
 scripts/bootstrap-regression.sh    seeds a scratch project, runs drift.sh

@@ -88,6 +88,17 @@ assert allow "implementer MAY Edit CLAUDE.md (gate check 4 requires it)" \
 assert allow "implementer MAY Edit a shipped template skeleton" \
   implementer Edit file_path "$ROOT/plugins/governed-dev/templates/DECISIONS.md"
 
+# ADR-0029 moved the ADRs out of DECISIONS.md into docs/adr/. Denying the file
+# but not the directory it became would have silently reopened the route this
+# boundary exists to close -- the implementer editing the record that justifies
+# its own work. Archived entries are the same record and carry the same denial.
+assert deny  "implementer may not Edit an ADR file" \
+  implementer Edit file_path "$ROOT/docs/adr/0001-split-plugin-content.md" "scribe"
+assert deny  "implementer may not Edit an ARCHIVED ADR file" \
+  implementer Edit file_path "$ROOT/docs/adr/archive/0021-headless-auditor-action.md" "scribe"
+assert deny  "implementer may not redirect into docs/adr/ via the shell" \
+  implementer Bash command 'echo x >> docs/adr/0001-split-plugin-content.md' "scribe"
+
 echo
 echo "path boundaries -- Windows drive-letter spelling (regression, T-005):"
 assert deny  "implementer denied via C:/ spelling" \
@@ -99,6 +110,10 @@ echo
 echo "path boundaries -- the other agents:"
 assert allow "scribe MAY Edit DECISIONS.md" \
   scribe Edit file_path "$ROOT/DECISIONS.md"
+assert allow "scribe MAY Edit an ADR file (it owns them, ADR-0029)" \
+  scribe Edit file_path "$ROOT/docs/adr/0001-split-plugin-content.md"
+assert allow "scribe MAY Edit an archived ADR file" \
+  scribe Edit file_path "$ROOT/docs/adr/archive/0021-headless-auditor-action.md"
 assert allow "scribe MAY Edit TASKS.md" \
   scribe Edit file_path "$ROOT/TASKS.md"
 assert deny  "scribe may not Edit code" \

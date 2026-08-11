@@ -8,15 +8,19 @@
 # mechanical version of a review that was previously done by hand, and found
 # four real defects doing it (T-012..T-015).
 #
-# Five checks, all read-only:
+# Six checks, all read-only:
 #
 #   1 staleness    every path named in CLAUDE.md's structure block exists, and
 #                  every top-level directory on disk is named there.
 #   2 budget       CLAUDE.md <= 300 lines, warned at 250.
-#   3 orphans      every ADR-NNNN / SG-NNNN cited anywhere resolves to an entry
-#                  in DECISIONS.md; every done task cites a commit that exists.
+#   3 orphans      every ADR-NNNN cited anywhere resolves to a file in docs/adr/
+#                  or docs/adr/archive/ (or, where a project keeps ADRs inline,
+#                  to a heading in DECISIONS.md); every SG-NNNN resolves in
+#                  DECISIONS.md; every done task cites a commit that exists.
 #   4 superseded   ADR numbers are contiguous -- no number silently vanishes.
-#   5 mirror parity where a project mirrors hooks.json into .claude/settings.json,
+#   5 index parity where DECISIONS.md is a generated index over docs/adr/, the
+#                  two must agree; the gate verifies, it never regenerates.
+#   6 mirror parity where a project mirrors hooks.json into .claude/settings.json,
 #                  the two must agree on events, matchers and async flags; and the
 #                  agent roster mirror must match the shipped one byte for byte.
 #
@@ -199,7 +203,34 @@ check_budget() {
 
 # ---------------------------------------------------------------------------
 # Check 3 -- orphans
+#
+# TWO LAYOUTS, both supported. devseed keeps each ADR in its own file under
+# docs/adr/ with DECISIONS.md generated as an index (ADR-0029); a consumer
+# project that has not migrated keeps every ADR inline in DECISIONS.md. The
+# layout is detected, not configured -- docs/adr/ exists or it does not.
+#
+# In per-file mode an id resolves against docs/adr/ AND docs/adr/archive/.
+# Archived is not gone: an ADR whose subject was deleted still explains why the
+# repository looks the way it does, and a citation that stops resolving because
+# an entry was retired would make retirement destructive, which is exactly what
+# the archive exists to avoid.
+#
+# Spec-gap ids stay in DECISIONS.md under "Spec gaps observed" in both layouts.
 # ---------------------------------------------------------------------------
+ADR_DIR="${DRIFT_ADR_DIR:-docs/adr}"
+ADR_ARCHIVE="${DRIFT_ADR_ARCHIVE:-docs/adr/archive}"
+
+# adr_resolves <ADR-NNNN> -- true if the id has an entry in either layout.
+adr_resolves() {
+  local id="$1" num="${1#ADR-}"
+  if [ -d "$ADR_DIR" ]; then
+    ls "$ADR_DIR/$num"-*.md >/dev/null 2>&1 && return 0
+    ls "$ADR_ARCHIVE/$num"-*.md >/dev/null 2>&1 && return 0
+    return 1
+  fi
+  grep -q "^## $id\b" DECISIONS.md 2>/dev/null
+}
+
 check_orphans() {
   require_git
 
@@ -222,10 +253,16 @@ check_orphans() {
         lno="${line%%:*}"
         ident="${line#*:}"
         case "$ident" in
-          ADR-*) grep -q "^## $ident\b" DECISIONS.md 2>/dev/null && continue
-                 drift "$f:$lno" \
+          ADR-*) adr_resolves "$ident" && continue
+                 if [ -d "$ADR_DIR" ]; then
+                   drift "$f:$lno" \
+"cites $ident, which matches no file in $ADR_DIR/ or $ADR_ARCHIVE/." \
+"add the ADR as $ADR_DIR/${ident#ADR-}-<short-slug>.md and re-run scripts/rebuild-adr-index.sh, or correct the reference. A decision cited by number that nobody can look up is indistinguishable from one that was never made. Retiring an ADR means moving it to $ADR_ARCHIVE/, never deleting it -- ids resolve forever."
+                 else
+                   drift "$f:$lno" \
 "cites $ident, which has no \"## $ident\" heading in DECISIONS.md." \
 "add the ADR to DECISIONS.md, or correct the reference. A decision cited by number that nobody can look up is indistinguishable from one that was never made."
+                 fi
                  ;;
           SG-*)  grep -q "^### $ident\b" DECISIONS.md 2>/dev/null && continue
                  drift "$f:$lno" \
@@ -293,8 +330,16 @@ check_superseded() {
   [ -f DECISIONS.md ] || return 0
   require_git
 
+  # Same two layouts as check 3. Per-file: the ids are the filenames, archive
+  # included -- an archived ADR still occupies its number forever, so omitting
+  # the archive would read every retirement as a hole.
   local cur max n missing
-  cur="$(grep -oE '^## ADR-[0-9]{4}' DECISIONS.md 2>/dev/null | grep -oE 'ADR-[0-9]{4}' | sort -u)"
+  if [ -d "$ADR_DIR" ]; then
+    cur="$( { ls "$ADR_DIR"/*.md "$ADR_ARCHIVE"/*.md 2>/dev/null; } \
+            | sed 's#.*/##' | grep -oE '^[0-9]{4}' | sed 's/^/ADR-/' | sort -u)"
+  else
+    cur="$(grep -oE '^## ADR-[0-9]{4}' DECISIONS.md 2>/dev/null | grep -oE 'ADR-[0-9]{4}' | sort -u)"
+  fi
   [ -n "$cur" ] || return 0
 
   # Contiguity. A hole means an ADR was removed, or one was numbered by
@@ -314,7 +359,70 @@ check_superseded() {
 }
 
 # ---------------------------------------------------------------------------
-# Check 5 -- hook wiring parity
+# Check 5 -- ADR index parity
+#
+# Where DECISIONS.md is a GENERATED index over docs/adr/ (ADR-0029), the index
+# and the directory are one fact in two places, and nothing else in the
+# repository would notice them parting: a renamed, added, archived or
+# re-statused ADR leaves the index silently wrong, and the index is what a
+# reader scans first.
+#
+# This is the check .claude/rules/ledger.md's lifecycle rule names as its
+# enforcement, per ADR-0023's discipline that a new rule arrives with its check
+# named rather than resting on memory.
+#
+# THE GATE DOES NOT REGENERATE ANYTHING. It runs the generator's --print mode,
+# which writes nothing, and compares. Verification only, no side effects
+# (DESIGN.md SS5) -- the rule T-030 now tests in CI. The generator is the single
+# implementation of the derivation; this check owns no second copy of it.
+#
+# WHAT TRIGGERS IT is the marker DECISIONS.md carries, not the mere existence
+# of docs/adr/. A project may keep per-file ADRs and a hand-written DECISIONS.md
+# -- devseed's own scripts/ is dev tooling and does not ship, so a consumer that
+# adopts the layout without the generator is in a legitimate configuration, and
+# failing their gate over a file they never had is a false positive on a correct
+# change. Only a file that CLAIMS to be generated is held to matching.
+# ---------------------------------------------------------------------------
+ADR_INDEX_GEN="${DRIFT_ADR_INDEX_GEN:-scripts/rebuild-adr-index.sh}"
+ADR_INDEX_MARK="${DRIFT_ADR_INDEX_MARK:-<!-- GENERATED FILE.}"
+
+check_adr_index() {
+  [ -d "$ADR_DIR" ] || return 0
+  [ -f DECISIONS.md ] || return 0
+  grep -qF "$ADR_INDEX_MARK" DECISIONS.md 2>/dev/null || return 0
+
+  if [ ! -f "$ADR_INDEX_GEN" ]; then
+    drift "$ADR_INDEX_GEN" \
+"DECISIONS.md declares itself generated, but the generator $ADR_INDEX_GEN is missing, so nothing can verify or rebuild it." \
+"restore $ADR_INDEX_GEN, or remove the generated-file marker from DECISIONS.md and maintain it by hand. A file that claims to be generated by a script nobody has is a claim no reader can check."
+    return
+  fi
+
+  local want got
+  want="$(bash "$ADR_INDEX_GEN" --print 2>/dev/null)"
+  if [ -z "$want" ]; then
+    drift "$ADR_INDEX_GEN" \
+"the ADR index generator produced no output, so the committed DECISIONS.md cannot be verified against $ADR_DIR/." \
+"run: bash $ADR_INDEX_GEN --print, and fix whatever it reports. A parity check that cannot run is a failed check, not a skip."
+    return
+  fi
+
+  # Compared with CR stripped from both sides. Only *.sh is pinned to LF
+  # (SG-0009), so this file checks out CRLF on Windows and would otherwise
+  # differ from the generator's LF output on every Windows checkout -- a
+  # guaranteed false positive on a correct tree, and one the matrix would have
+  # found the hard way (ADR-0025's class).
+  got="$(tr -d '\r' < DECISIONS.md)"
+  want="$(printf '%s' "$want" | tr -d '\r')"
+  [ "$want" = "$got" ] && return 0
+
+  drift "DECISIONS.md" \
+"the ADR index no longer matches $ADR_DIR/ -- an entry was added, renamed, archived, or re-statused without the index being rebuilt." \
+"run scripts/rebuild-adr-index.sh and commit the result. Do not hand-edit the index: everything above the 'Spec gaps observed' heading is generated from the ADR files, and an edit there is discarded on the next rebuild while looking authoritative until then."
+}
+
+# ---------------------------------------------------------------------------
+# Check 6 -- hook wiring parity
 #
 # Where a project both ships hooks.json and mirrors it into .claude/settings.json
 # (devseed does; ADR-0011), the two are one wiring in two files. The SCRIPTS are
@@ -495,6 +603,7 @@ check_staleness
 check_budget
 check_orphans
 check_superseded
+check_adr_index
 check_hook_parity
 check_agent_parity
 check_skill_parity

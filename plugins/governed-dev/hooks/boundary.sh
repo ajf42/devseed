@@ -101,6 +101,10 @@ _is_root_ledger() {
     */templates/*) return 1 ;;
     DESIGN.md|DECISIONS.md|TASKS.md) return 0 ;;
     /*/DESIGN.md|/*/DECISIONS.md|/*/TASKS.md) return 0 ;;
+    # The ADRs themselves, since ADR-0029 split them out of DECISIONS.md.
+    # Denying the file but not the directory it became would have quietly
+    # reopened the exact route this boundary exists to close.
+    docs/adr/*|*/docs/adr/*) return 0 ;;
   esac
   return 1
 }
@@ -114,6 +118,9 @@ _is_scribe_file() {
     */templates/*) return 1 ;;
     DECISIONS.md|TASKS.md|CLAUDE.md) return 0 ;;
     /*/DECISIONS.md|/*/TASKS.md|/*/CLAUDE.md) return 0 ;;
+    # ADR files and their archive: the scribe writes them and performs the
+    # git mv that retires one (ADR-0029, .claude/rules/ledger.md).
+    docs/adr/*|*/docs/adr/*) return 0 ;;
   esac
   return 1
 }
@@ -147,7 +154,7 @@ _cmd_no_templates() { printf '%s' "$CMD" | sed 's#[A-Za-z0-9_./-]*templates/[A-Z
 # here costs it nothing it needs.
 _cmd_names_ledger() {
   case "$(_cmd_no_templates)" in
-    *DESIGN.md*|*DECISIONS.md*|*TASKS.md*) return 0 ;;
+    *DESIGN.md*|*DECISIONS.md*|*TASKS.md*|*docs/adr/*) return 0 ;;
   esac
   return 1
 }
@@ -207,7 +214,7 @@ scribe for DECISIONS.md, TASKS.md, or CLAUDE.md."
 
     implementer)
       if _cmd_names_ledger; then
-        deny "The implementer agent may not run a $TOOL command naming DESIGN.md, DECISIONS.md or TASKS.md.
+        deny "The implementer agent may not run a $TOOL command naming DESIGN.md, DECISIONS.md, TASKS.md or docs/adr/.
 
   $CMD
 
@@ -219,7 +226,8 @@ enough to be trusted -- and a boundary that fails open is not a boundary.
 
 Use Read and Grep to look at these files. To change one:
   - DESIGN.md         needs an amendment. Stop and raise it with the human.
-  - DECISIONS.md      the scribe agent writes ADRs and spec gaps.
+  - DECISIONS.md      the scribe agent writes spec gaps; the index is generated.
+  - docs/adr/         the scribe agent writes and archives ADRs.
   - TASKS.md          the scribe agent records status and commit hashes.
 
 If you are here because DESIGN.md is silent on something you need, that is a
@@ -276,7 +284,8 @@ declaring it closed. The whole separation of duties reduces to this one denial.
 
 Instead:
   - DESIGN.md         needs an amendment. Stop and raise it with the human.
-  - DECISIONS.md      the scribe agent writes ADRs and spec gaps.
+  - DECISIONS.md      the scribe agent writes spec gaps; the index is generated.
+  - docs/adr/         the scribe agent writes and archives ADRs.
   - TASKS.md          the scribe agent records status and commit hashes.
 
 If you are here because DESIGN.md is silent on something you need, that is a

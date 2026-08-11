@@ -803,3 +803,39 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   that rules here are decorative"), not on its specific-incident clause, which
   is written for amending a rule that failed and does not cover subtracting
   one that never fired. Named in ADR-0028 so the route is auditable.
+
+## T-040 — One file per ADR; DECISIONS.md becomes a generated index
+
+- **Description:** `DECISIONS.md` reached 2,499 lines holding 28 ADRs, and
+  every session resolving one citation paid context for all of it. Split each
+  ADR into `docs/adr/NNNN-short-slug.md` preserving numbering exactly; make
+  `DECISIONS.md` a generated index (id, status, title) plus the hand-written
+  "Spec gaps observed" section inline. Add the lifecycle rule to
+  `.claude/rules/ledger.md` — archival is a `git mv` into `docs/adr/archive/`,
+  ids resolve from either directory forever, the scribe owns the moves — and
+  name its enforcing check in the rule's own text per ADR-0023's discipline.
+- **Acceptance:** every `ADR-NNNN` citation in the repository still resolves;
+  the gate never runs the generator (verification only — the rule T-030 tests
+  in CI), so drift calls its `--print` mode and compares; `gate-regression.sh`
+  gains two cases (a citation resolving to an archived ADR passes, one
+  resolving to nothing fails); `docs/adr/` is in the scribe's writable set and
+  the implementer's denied set in both mirrored copies; `CLAUDE.md`'s
+  structure block updated in the same commit; gate and all three suites pass;
+  full matrix green.
+- **Status:** in-progress
+- **Commit:** —
+- **Routes used, per §6:** all corrections, no amendment. Adding the
+  index-parity check is a **tightening**, which the ratchet exempts from the
+  ADR bar and records as a correction to §5's table. The four DESIGN.md
+  passages naming `DECISIONS.md` as the ADR location — including §6's own
+  "recorded in `DECISIONS.md`", which the migration made literally false —
+  changed storage, not obligation, so they went the correction path too.
+  `/amend` was not needed and was not run.
+- **Found before shipping:** on a fresh Windows checkout `DECISIONS.md` is
+  CRLF while the generator emits LF, so the parity check would have failed the
+  windows leg on a clean tree. Both sides now strip CR before comparing. First
+  time this cross-platform class was caught before the matrix rather than by
+  it (compare ADR-0025).
+- **Two pre-existing heading bugs fixed in passing:** ADR-0020 and ADR-0021
+  had titles wrapped across two lines, which markdown renders as a heading
+  plus a stray paragraph and which truncated their index rows. Joined.

@@ -39,7 +39,7 @@ as a separate statement — not as a silent edit folded into a larger diff.
 
 ## The wall
 
-`DESIGN.md`, `DECISIONS.md` and `TASKS.md` are denied to you. Not by
+`DESIGN.md`, `DECISIONS.md`, `TASKS.md` and `docs/adr/` are denied to you. Not by
 convention — by a hook that returns `deny` and blocks the call. It watches
 `Edit`, `Write` and `NotebookEdit`, and also watches `Bash` for commands that
 name those files, so a shell redirect is not a way around it.

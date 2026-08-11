@@ -12,7 +12,7 @@ Ask what *kind* of statement it is:
 |---|---|---|
 | A constraint, an intent, something that **should be true** | `DESIGN.md` | Spec. Changes only via the amendment procedure (§6). |
 | A description of what **is true right now** | `CLAUDE.md` | Current state. Expected to go stale; corrected in place. |
-| **Why** a choice was made, and what was rejected | `DECISIONS.md` | Rationale. Append-only; entries are superseded, never edited away. |
+| **Why** a choice was made, and what was rejected | one file under `docs/adr/` | Rationale. Append-only; entries are superseded, never edited away. `DECISIONS.md` is the generated index over them (ADR-0029). |
 | Work **not yet done** | `TASKS.md` | Backlog. One task per commit. |
 | A record that **something happened** | `.claude/activity.jsonl` | Audit trail. Append-only, machine-written, never edited by hand. |
 
@@ -21,7 +21,59 @@ Two follow-up questions settle most of the remainder:
 - **Would this still be true if all the code were deleted?** Yes → `DESIGN.md`.
   No → `CLAUDE.md`.
 - **Is this a decision someone could reasonably have made differently?** Yes →
-  it needs an ADR in `DECISIONS.md`, whatever else it needs.
+  it needs an ADR, whatever else it needs.
+
+## The ADR lifecycle
+
+One ADR is one file: `docs/adr/NNNN-short-slug.md`, numbered by taking the next
+unused `NNNN`. **Numbering is permanent** — `ADR-0003` means the same thing
+forever, numbers are never reused, and a citation of one resolves for the life
+of the repository. Each entry carries Status, Context (**including the
+alternatives rejected and why** — an entry naming only the option taken records
+a preference, not a decision), Decision, and Consequences (**including the costs
+accepted** — an entry with only upsides is incomplete).
+
+**An ADR is active while its constraint is load-bearing.** Two things end that,
+and both are a *move*, never a deletion:
+
+- it is **superseded** — a later ADR replaces the constraint outright; or
+- its **subject is deleted** — the thing it decided about no longer exists.
+
+Either way it moves with `git mv` to `docs/adr/archive/`, and the index status
+becomes `archived` on the next rebuild. **Archived is not gone.** A retired
+entry still explains why the repository looks the way it does, so every
+citation-resolving check searches `docs/adr/` **and** `docs/adr/archive/`. If
+retiring an entry broke the citations pointing at it, retirement would be
+destructive and nobody would do it — which is how a decision log fills with
+entries no one dares touch.
+
+A **partial** supersession is not a retirement: if any part of the entry is
+still load-bearing it stays active, and the superseded part is named in its own
+file and in the superseding one. `ADR-0001` is the worked example — its version
+clause was replaced by `ADR-0026` while its plugin/governance split still
+governs the repository's layout.
+
+**The check that enforces this** (named here rather than left to memory, per
+ADR-0023's discipline that a new rule arrives with its enforcement stated): the
+**ADR index-parity check** in `gates/drift.sh`, which runs
+`scripts/rebuild-adr-index.sh --print` and fails when the committed
+`DECISIONS.md` differs from what the ADR files generate. Adding, renaming,
+archiving, or re-statusing an entry without rebuilding the index is caught
+there. What it does *not* check is whether an entry that should have been
+archived actually was — "is this constraint still load-bearing?" is a judgement,
+and no script makes it.
+
+**The scribe owns the moves.** `docs/adr/` is in the scribe's writable set and
+the implementer's denied set, for the same reason `DECISIONS.md` always was: an
+agent that both makes a decision and records it can make the two agree by
+editing whichever is cheaper.
+
+**`DECISIONS.md` is generated.** Everything above the "Spec gaps observed"
+heading comes from the ADR files; editing it changes nothing and is discarded
+on the next rebuild. Regenerate with `bash scripts/rebuild-adr-index.sh`. The
+gate never runs the generator — it is verification-only and writes nothing —
+so rebuilding is the author's step, and forgetting it is what the parity check
+reports.
 
 ## Boundaries that get blurred
 

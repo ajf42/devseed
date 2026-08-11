@@ -191,6 +191,29 @@ scaffold_docs
 printf '\n# see %s\n' "$_SG" >> "$WORK/src/m.py"
 run_drift 2 "orphan: spec-gap id cited with no entry" "$_SG"
 
+# --- T-040: ids resolve across docs/adr/ AND docs/adr/archive/ ---------------
+# ADR-0029 moved each ADR into its own file and made retirement a git mv into
+# archive/. The property that has to hold is that RETIREMENT IS NOT DESTRUCTIVE:
+# a citation of an archived entry still resolves, or nobody would ever archive
+# anything and the log would fill with entries no one dares touch.
+scaffold_docs
+mkdir -p "$WORK/docs/adr/archive"
+printf '# ADR-0001 — active one\n\n- **Status:** Accepted\n' > "$WORK/docs/adr/0001-active-one.md"
+printf '# ADR-0002 — retired one\n\n- **Status:** Accepted\n' > "$WORK/docs/adr/archive/0002-retired-one.md"
+# DECISIONS.md keeps the spec gaps inline; its ADR headings are gone, so a
+# citation can only resolve via the directories.
+printf '# DECISIONS.md\n\n## Spec gaps observed\n\n### SG-0001 — a gap\nBody.\n' > "$WORK/DECISIONS.md"
+printf '\n# cites ADR-0002\n' >> "$WORK/src/m.py"
+( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm adr )
+run_drift 0 "citation resolving to an ARCHIVED ADR passes"
+
+# And the negative: an id matching no file in either directory must fail. Same
+# fixture, one digit different -- assembled at runtime so this suite does not
+# flag itself, the same dodge the orphan cases above use.
+_GONE="ADR-00"; _GONE="${_GONE}77"
+printf '\n# cites %s\n' "$_GONE" >> "$WORK/src/m.py"
+run_drift 2 "citation resolving to nothing fails" "$_GONE"
+
 # Superseded integrity: a hole in the ADR sequence. The companion case -- an
 # ADR deleted outright, caught by walking git history -- went with the walk
 # itself (ADR-0028): it could not run in a shallow clone, so it read as
