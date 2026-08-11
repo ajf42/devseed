@@ -662,3 +662,49 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   the recorded fallback if they do (ADR-0025's alternatives).
 - **Status:** done
 - **Commit:** `5759381`
+
+## T-034 — LICENSE
+
+- **Description:** There is no license file, which legally means
+  all-rights-reserved and blocks anyone at a company from touching the
+  repository. Add MIT at the repo root, copyright Andrew Fitzpatrick. No
+  per-file headers — a header in every file is 60 copies of one fact with
+  one maintainer.
+- **Acceptance:** `LICENSE` exists at the repo root, MIT, correct holder and
+  year; named in `CLAUDE.md`'s structure block; no behaviour change and no
+  per-file headers added.
+- **Status:** in-progress
+- **Commit:** —
+
+## T-035 — Declare `version` in `plugin.json`
+
+- **Description:** Per ADR-0026, set `"version": "0.1.0"` in
+  `plugins/governed-dev/.claude-plugin/plugin.json`, superseding ADR-0001's
+  omission on the distribution question only. Correct every passage that
+  documents the omission as deliberate — `README.md`, `CLAUDE.md`, and
+  `.claude/settings.json`'s `_WHY_THIS_EXISTS` — since all three become
+  false on that commit.
+- **Acceptance:** the version is declared in exactly one place (the
+  marketplace entry stays versionless); no `DESIGN.md` constraint or gate
+  check references the field's absence, verified by grep rather than assumed,
+  so this stays a correction plus a scoped supersession and needs no
+  `/amend`; gate and all three suites pass.
+- **Status:** todo
+- **Commit:** —
+- **Open follow-up:** `claude plugin validate --strict` was **not run** — the
+  `claude` CLI is not installed on this machine. Whether declaring a version
+  makes `--strict` pass is therefore unverified, and is recorded as unverified
+  rather than claimed. Run it on a machine that has the CLI and record the
+  actual output here.
+
+## T-036 — Tag v0.1.0
+
+- **Description:** After T-034 and T-035 land and the matrix is green **on
+  the tagged commit**, tag `v0.1.0` and push the tag. Add one sentence to
+  `README.md`'s install section covering tag-pinned installs and what
+  updating requires.
+- **Acceptance:** the tag points at a commit whose own matrix run is green —
+  not at a commit that merely descends from a green one; the README sentence
+  states only documented syntax; run id recorded here.
+- **Status:** todo
+- **Commit:** —
