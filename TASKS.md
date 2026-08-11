@@ -673,8 +673,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** `LICENSE` exists at the repo root, MIT, correct holder and
   year; named in `CLAUDE.md`'s structure block; no behaviour change and no
   per-file headers added.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `7c955ef`
 
 ## T-035 — Declare `version` in `plugin.json`
 
@@ -689,8 +689,17 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   check references the field's absence, verified by grep rather than assumed,
   so this stays a correction plus a scoped supersession and needs no
   `/amend`; gate and all three suites pass.
-- **Status:** todo
-- **Commit:** —
+- **Status:** done
+- **Commit:** `929743a`
+- **Premise corrected while doing it (ADR-0026):** this was requested on the
+  grounds that omitting `version` is what makes installs "go stale
+  silently". Checked against the plugin documentation: omitting it makes the
+  version the commit SHA, and such an install *does* move on
+  `/plugin update`; declaring one makes the freeze absolute until the field
+  is bumped. The change is still right — a published tool needs a version
+  that is a claim — but for ADR-0001's own stated reason, not that one. Also
+  corrected two stale `README.md` claims found in passing: seven gate checks,
+  not six, and the agents/skills/hooks are built, not in progress.
 - **Open follow-up:** `claude plugin validate --strict` was **not run** — the
   `claude` CLI is not installed on this machine. Whether declaring a version
   makes `--strict` pass is therefore unverified, and is recorded as unverified
