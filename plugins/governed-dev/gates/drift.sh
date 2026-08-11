@@ -8,27 +8,24 @@
 # mechanical version of a review that was previously done by hand, and found
 # four real defects doing it (T-012..T-015).
 #
-# Six checks, all read-only:
+# Five checks, all read-only:
 #
-#   1 duplication  CLAUDE.md must not copy >=12 contiguous words out of a
-#                  DESIGN.md rules section. Summaries reference; they do not
-#                  copy. Copied text is text that will silently diverge.
-#   2 staleness    every path named in CLAUDE.md's structure block exists, and
+#   1 staleness    every path named in CLAUDE.md's structure block exists, and
 #                  every top-level directory on disk is named there.
-#   3 budget       CLAUDE.md <= 300 lines, warned at 250.
-#   4 orphans      every ADR-NNNN / SG-NNNN cited anywhere resolves to an entry
+#   2 budget       CLAUDE.md <= 300 lines, warned at 250.
+#   3 orphans      every ADR-NNNN / SG-NNNN cited anywhere resolves to an entry
 #                  in DECISIONS.md; every done task cites a commit that exists.
-#   5 superseded   ADR numbers are contiguous, and no ADR or spec gap that ever
-#                  existed in git history has been deleted.
-#   6 mirror parity where a project mirrors hooks.json into .claude/settings.json,
+#   4 superseded   ADR numbers are contiguous -- no number silently vanishes.
+#   5 mirror parity where a project mirrors hooks.json into .claude/settings.json,
 #                  the two must agree on events, matchers and async flags; and the
 #                  agent roster mirror must match the shipped one byte for byte.
 #
-# SELF-UPDATING BY CONSTRUCTION. Check 1 re-reads DESIGN.md at runtime and
-# derives its canaries from whatever the rules sections currently say. Editing
-# the spec never requires editing this guard -- which is the whole point, since
-# a guard that needed hand-updating alongside the thing it guards is one more
-# copy to drift.
+# TWO SUB-CHECKS WERE REMOVED (ADR-0028), both as dead rules under DESIGN.md
+# SS6's never-fired test: a duplication check that measured whether CLAUDE.md
+# copied >=12 contiguous words out of a DESIGN.md rules section, and a walk of
+# DECISIONS.md's git history asserting no ADR had ever been deleted. The second
+# was silently inert under a default shallow checkout. Do not reinstate either
+# without an incident to cite.
 #
 # EXIT CODES: 0 = no drift, 2 = drift found. NEVER 1 -- see gate.sh.
 #
@@ -58,11 +55,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 CHECK="7/7 drift"
 
-# The substantial-copy threshold, in words. Short runs legitimately co-occur
-# (section titles, shared terminology, a quoted phrase); a whole copied bullet
-# does not. Overridable so the regression harness can provoke a hit cheaply.
-WINDOW="${DRIFT_WINDOW:-12}"
-
 BUDGET_FAIL="${DRIFT_BUDGET_FAIL:-300}"
 BUDGET_WARN="${DRIFT_BUDGET_WARN:-250}"
 
@@ -82,137 +74,7 @@ warn() { printf 'drift: WARNING %s -- %s\n' "$1" "$2" >&2; }
 skip() { printf 'drift: %s\n' "$1" >&2; }
 
 # ---------------------------------------------------------------------------
-# Check 1 -- duplication
-#
-# A DESIGN.md rules section is any "## " section whose title names rules,
-# conventions, constraints, a contract or standards. That pattern -- not a
-# hardcoded section number -- is what makes the check survive DESIGN.md being
-# renumbered. Section 5 is "Build rules" here and in the shipped template.
-# ---------------------------------------------------------------------------
-DUP_AWK='
-function norm(s) {
-  # [label](url) -> label. The URL is not prose and must not become tokens,
-  # or every link would look like duplicated text.
-  gsub(/\]\([^)]*\)/, "]", s)
-  s = tolower(s)
-  # Everything that is not an ASCII alphanumeric becomes a separator. This is
-  # what folds smart quotes, em dashes, backticks, emphasis markers, list
-  # bullets and heading hashes in one step -- they are all punctuation, and
-  # punctuation never survives into the token stream.
-  gsub(/[^a-z0-9]+/, " ", s)
-  gsub(/^ +/, "", s); gsub(/ +$/, "", s)
-  return s
-}
-
-BEGIN { W = window + 0; if (W < 2) W = 12; top = 0 }
-
-# ---- first file: DESIGN.md ----
-FNR == NR {
-  if ($0 ~ /^## /) {
-    insec = (tolower($0) ~ /rule|convention|constraint|contract|standard/)
-    if (insec) { nsec++; secname[nsec] = $0 }
-    # The heading itself is excluded. Section titles legitimately appear in
-    # both documents -- CLAUDE.md has its own "Build rules" heading -- and
-    # counting them would make every correct pointer look like a copy.
-    next
-  }
-  if (!insec) next
-  n = norm($0); if (n == "") next
-  m = split(n, a, " ")
-  for (i = 1; i <= m; i++) { dn++; D[dn] = a[i]; DSEC[dn] = nsec }
-  next
-}
-
-# ---- second file: CLAUDE.md ----
-{
-  n = norm($0); if (n == "") next
-  m = split(n, a, " ")
-  for (i = 1; i <= m; i++) { cn++; C[cn] = a[i]; CLINE[cn] = FNR }
-}
-
-END {
-  if (nsec == 0) { print "NOSECTION"; exit }
-  if (dn < W || cn < W) exit
-
-  # A flat string of the CLAUDE.md tokens, so the common case (no overlap at
-  # all) costs one index() per window instead of a quadratic scan.
-  blob = " "
-  for (i = 1; i <= cn; i++) blob = blob C[i] " "
-
-  hits = 0
-  for (i = 1; i + W - 1 <= dn; i++) {
-    ng = D[i]
-    for (k = 1; k < W; k++) ng = ng " " D[i + k]
-    if (index(blob, " " ng " ") > 0) { hit[i] = 1; hits++ }
-  }
-  if (hits == 0) exit
-
-  # Coalesce overlapping windows into the largest contiguous span, so one
-  # copied paragraph is reported once rather than once per offset.
-  i = 1
-  while (i <= dn) {
-    if (!(i in hit)) { i++; continue }
-    s = i
-    while ((i + 1) in hit) i++
-    e = i + W - 1
-
-    wit = D[s]
-    for (k = s + 1; k <= e; k++) wit = wit " " D[k]
-
-    # Locate the span in CLAUDE.md to name a line. Try the full span first;
-    # fall back to its leading window, which matched by construction.
-    cl = locate(s, e)
-    if (cl == 0) cl = locate(s, s + W - 1)
-
-    printf "HIT\t%d\t%d\t%s\t%s\n", cl, e - s + 1, secname[DSEC[s]], wit
-    i++
-  }
-}
-
-function locate(a0, b0,   p, k, ok) {
-  for (p = 1; p + (b0 - a0) <= cn; p++) {
-    ok = 1
-    for (k = 0; k <= b0 - a0; k++) if (C[p + k] != D[a0 + k]) { ok = 0; break }
-    if (ok) return CLINE[p]
-  }
-  return 0
-}
-'
-
-check_duplication() {
-  if [ ! -f DESIGN.md ] || [ ! -f CLAUDE.md ]; then
-    skip "check 1 (duplication): DESIGN.md or CLAUDE.md absent -- nothing to compare."
-    return
-  fi
-
-  local out
-  out="$(awk -v window="$WINDOW" "$DUP_AWK" DESIGN.md CLAUDE.md 2>/dev/null)"
-
-  if [ "$out" = "NOSECTION" ]; then
-    # Not a skip. A DESIGN.md with no identifiable rules section means the
-    # check is inert, and an inert guard that reports success is exactly the
-    # silent degradation DESIGN.md §5 is written against.
-    drift "DESIGN.md" \
-"no section heading names rules, conventions, constraints, a contract or standards, so the duplication check has nothing to compare against and is silently inert." \
-"title the rules section so it matches -- e.g. '## 5. Build rules' -- or, if this project genuinely has no rules section, remove check 7 from gate.sh rather than leaving a guard that always passes."
-    return
-  fi
-
-  [ -n "$out" ] || return 0
-
-  local line words sec wit
-  while IFS="$(printf '\t')" read -r _tag line words sec wit; do
-    [ "${_tag:-}" = "HIT" ] || continue
-    drift "CLAUDE.md:${line}" \
-"$words-word run copied from DESIGN.md \"${sec#\#\# }\": \"$wit\"" \
-"replace it with a one-line summary and a pointer to that section. CLAUDE.md may say THAT a rule holds and link to it; restating the rule creates a second copy with no maintainer, and the two diverge the moment the spec is edited."
-  done <<EOF
-$out
-EOF
-}
-
-# ---------------------------------------------------------------------------
-# Check 2 -- staleness
+# Check 1 -- staleness
 #
 # CLAUDE.md's structure block is an indented tree. A line's indentation picks
 # its parent; the first run of two-or-more spaces ends the path column and
@@ -250,7 +112,7 @@ BEGIN { top = 0 }
 
 check_staleness() {
   if [ ! -f CLAUDE.md ]; then
-    skip "check 2 (staleness): no CLAUDE.md -- nothing to check."
+    skip "check 1 (staleness): no CLAUDE.md -- nothing to check."
     return
   fi
 
@@ -258,7 +120,7 @@ check_staleness() {
   rows="$(awk "$TREE_AWK" CLAUDE.md 2>/dev/null)"
 
   if [ -z "$rows" ]; then
-    skip "check 2 (staleness): CLAUDE.md has no fenced structure block -- nothing to check."
+    skip "check 1 (staleness): CLAUDE.md has no fenced structure block -- nothing to check."
     return
   fi
 
@@ -311,7 +173,7 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Check 3 -- budget
+# Check 2 -- budget
 #
 # The ceiling is the point, not an aspiration: CLAUDE.md is read in full every
 # session, and one that grows without bound stops being read carefully. An
@@ -336,13 +198,13 @@ check_budget() {
 }
 
 # ---------------------------------------------------------------------------
-# Check 4 -- orphans
+# Check 3 -- orphans
 # ---------------------------------------------------------------------------
 check_orphans() {
   require_git
 
   if [ ! -f DECISIONS.md ]; then
-    skip "check 4 (orphans): no DECISIONS.md -- id references cannot be resolved."
+    skip "check 3 (orphans): no DECISIONS.md -- id references cannot be resolved."
   else
     # Every tracked file except DECISIONS.md itself, which is where the ids are
     # DEFINED, and the activity log, which is machine-written and append-only:
@@ -418,12 +280,14 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Check 5 -- superseded integrity
+# Check 4 -- superseded integrity
 #
-# DECISIONS.md is append-only: entries are superseded, never edited away. That
-# convention is unenforceable by inspection -- a deleted ADR leaves no trace in
-# the file it was deleted from. Git history is the only witness, so this check
-# asks it directly.
+# Contiguity only. A hole in the numbering means an entry was removed, or one
+# was numbered by guessing rather than by taking the next number. The stronger
+# git-history witness was removed in ADR-0028: it could not run in a shallow
+# clone, which is the default checkout, so it read as coverage while providing
+# none. Deleting the highest-numbered ADR is therefore NOT caught -- stated in
+# DESIGN.md SS5's Known limits rather than left to be discovered.
 # ---------------------------------------------------------------------------
 check_superseded() {
   [ -f DECISIONS.md ] || return 0
@@ -447,34 +311,10 @@ check_superseded() {
 "restore the missing entries, or renumber so the sequence has no holes. A gap reads as a deleted decision, and a decision log that can lose entries cannot be trusted about the ones it still has."
   fi
 
-  # Deletion. Every id that ever appeared in DECISIONS.md must still be there.
-  local revs rev hist id
-  revs="$(git log --format=%H -- DECISIONS.md 2>/dev/null)"
-  [ -n "$revs" ] || return 0
-
-  local seen=""
-  while IFS= read -r rev; do
-    [ -n "$rev" ] || continue
-    hist="$(git show "$rev:DECISIONS.md" 2>/dev/null | grep -oE '^#{2,3} (ADR|SG)-[0-9]{4}' | grep -oE '(ADR|SG)-[0-9]{4}')"
-    while IFS= read -r id; do
-      [ -n "$id" ] || continue
-      case " $seen " in *" $id "*) continue ;; esac
-      if ! grep -qE "^#{2,3} $id\b" DECISIONS.md 2>/dev/null; then
-        seen="$seen $id"
-        drift "DECISIONS.md" \
-"$id existed in DECISIONS.md at commit ${rev:0:7} and is gone from the current file." \
-"restore the entry and mark it superseded instead of removing it. DECISIONS.md is append-only: a decision that was reversed is still a decision that was made, and deleting it destroys the only record of why the current one exists."
-      fi
-    done <<EOF
-$hist
-EOF
-  done <<EOF
-$revs
-EOF
 }
 
 # ---------------------------------------------------------------------------
-# Check 6 -- hook wiring parity
+# Check 5 -- hook wiring parity
 #
 # Where a project both ships hooks.json and mirrors it into .claude/settings.json
 # (devseed does; ADR-0011), the two are one wiring in two files. The SCRIPTS are
@@ -651,7 +491,6 @@ EOF
 
 # ---------------------------------------------------------------------------
 
-check_duplication
 check_staleness
 check_budget
 check_orphans

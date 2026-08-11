@@ -47,8 +47,10 @@ plugin installed into other projects. See ADR-0001.
 - **The drift guard**, check 7, at `gates/drift.sh`. Asks whether the four
   ledger documents still describe the repository (§5's row 7 lists the drift
   classes). Reports every finding rather than stopping at the first; runs
-  standalone for CI; derives its canaries from DESIGN.md at runtime, so
-  editing the spec never means editing the guard (ADR-0012).
+  standalone for CI. **Five sub-checks since ADR-0028**, which removed the
+  duplication check and the ADR-deletion history walk as dead rules — what
+  each was watching for, and what is now unguarded, is in that ADR and in
+  §5's Known limits.
 - **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
@@ -58,9 +60,9 @@ plugin installed into other projects. See ADR-0001.
   `fetch-depth: 0` (ADR-0025). First matrix run green 2026-08-11, run id
   `31534896418`, recorded under T-009 — after run #1 went red on all legs
   (ADR-0025). Settles SG-0003 for devseed's own CI only (ADR-0020).
-  `preflight.sh` installs `jq` under `$CI` (ADR-0019). `audit.yml` (T-026)
-  is unexercised — no `ANTHROPIC_API_KEY` secret, two unverified details
-  (ADR-0021).
+  `preflight.sh` installs `jq` under `$CI` (ADR-0019). `audit.yml` was
+  **deleted** (ADR-0028): six runs in the repository's history, all `gate`,
+  and it could not run without a secret it never had. T-026 is unbuilt again.
 - **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
   `hooks.json`; the load-bearing one is `Stop`, which runs the full gate and
   blocks the turn ending on failure. Event table, local mechanics and what
@@ -157,7 +159,6 @@ plugin installed into other projects. See ADR-0001.
 ```
 .github/workflows/
   gate.yml                         CI parity: calls gate.sh directly (T-009)
-  audit.yml                        scheduled headless auditor (T-026, open items)
 .claude-plugin/marketplace.json    marketplace "ajf42-devtools"
 .claude/
   settings.json                    devseed's OWN hook wiring (ADR-0011)

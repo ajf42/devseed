@@ -303,8 +303,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   the GitHub Actions job summary. Requires an API credential the workflow does
   not supply — flagged in the workflow file and in DECISIONS.md rather than
   invented, since devseed has no secret to give it.
-- **Status:** done
-- **Commit:** `00077f8`
+- **Status:** blocked — needs an `ANTHROPIC_API_KEY` secret this repository
+  does not have. `audit.yml` shipped in `00077f8` and was **deleted** in
+  ADR-0028: six workflow runs exist in the repository's whole history and all
+  six are `gate`, so it never ran once and could not have. The historical
+  delivery stands; the capability does not. Re-doing it starts from the
+  credential, not from the workflow file.
+- **Commit:** `00077f8` (the delivery; since removed)
 
 ## T-027 — Commit provenance trailer
 
@@ -773,3 +778,28 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   TMPDIR/scratch-probe ledger truncation exists anywhere in the record: no
   commit has ever cut more than fifty lines from any ledger, and both grew
   monotonically this session. No finding was built on either.
+
+## T-039 — Execute the subtraction audit's three removals
+
+- **Description:** ADR-0027 sent three mechanisms to the human; all three came
+  back REMOVE (decision of 2026-08-11, final). Delete `.github/workflows/`
+  `audit.yml`; delete `drift.sh`'s duplication sub-check; delete the
+  git-history deletion walk from `check_superseded` while keeping ADR-number
+  contiguity. Record what each was watching for so a future reader sees a
+  decision rather than an oversight. Separately, correct ADR-0027's claim
+  that the TMPDIR incident has no evidence — it does — and add the §5 Known
+  limits entry for the seam that let the wrong claim travel.
+- **Acceptance:** the two check-table removals routed through `/amend` per §6
+  (they are loosenings) and the Known-limits additions through the correction
+  path, with each route named; ADR-0028 records the removals, the evidence,
+  and what is now unguarded; ADR-0027 forward-linked rather than edited;
+  `CLAUDE.md` updated in the same commit so the migration does not ship the
+  staleness the drift guard exists to catch; gate and all three suites pass;
+  full matrix green.
+- **Status:** in-progress
+- **Commit:** —
+- **§6 route note:** the removals rest on §6's **quarterly-self-audit clause**
+  ("rules that have never fired… a dead rule kept on the books teaches readers
+  that rules here are decorative"), not on its specific-incident clause, which
+  is written for amending a rule that failed and does not cover subtracting
+  one that never fired. Named in ADR-0028 so the route is auditable.

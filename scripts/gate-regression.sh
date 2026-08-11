@@ -142,10 +142,11 @@ echo "T-006 -- drift guard, acceptance cases:"
 scaffold_docs
 run_drift 0 "clean ledger passes"
 
-# Acceptance 1: paste a sentence from DESIGN.md's rules section into CLAUDE.md.
-scaffold_docs
-printf '\nA check that cannot run is a failed check, and silent degradation is the failure mode engineered against.\n' >> "$WORK/CLAUDE.md"
-run_drift 2 "duplication: rules sentence pasted into CLAUDE.md" "silent degradation is the failure mode"
+# T-006's Acceptance 1 -- a rules sentence pasted into CLAUDE.md must fail --
+# was removed with the duplication sub-check itself (ADR-0028). Copying is no
+# longer detected at all; DESIGN.md §5's Known limits says so. Do not re-add a
+# case here without re-adding the check, and do not re-add the check without an
+# incident to cite.
 
 # Acceptance 2: delete a directory the structure block names.
 scaffold_docs
@@ -190,21 +191,14 @@ scaffold_docs
 printf '\n# see %s\n' "$_SG" >> "$WORK/src/m.py"
 run_drift 2 "orphan: spec-gap id cited with no entry" "$_SG"
 
-# Superseded integrity: a hole in the ADR sequence, and an ADR removed from a
-# file that git history proves once contained it.
+# Superseded integrity: a hole in the ADR sequence. The companion case -- an
+# ADR deleted outright, caught by walking git history -- went with the walk
+# itself (ADR-0028): it could not run in a shallow clone, so it read as
+# coverage while providing none. Deleting the HIGHEST-numbered ADR is now
+# undetected, which is why DESIGN.md §5's Known limits names it.
 scaffold_docs
 printf '\n## ADR-0004 — fourth\nBody.\n' >> "$WORK/DECISIONS.md"
 run_drift 2 "superseded: ADR numbering not contiguous" "ADR-0003"
-
-scaffold_docs
-( cd "$WORK" && python - <<'PY' 2>/dev/null || { awk '/^## ADR-0001/{skip=1} /^## ADR-0002/{skip=0} !skip' DECISIONS.md > DECISIONS.md.new && mv DECISIONS.md.new DECISIONS.md; }   # fallback is awk, not GNU-only `sed -i` (ADR-0025)
-import io
-s = io.open('DECISIONS.md', encoding='utf-8').read()
-i, j = s.index('## ADR-0001'), s.index('## ADR-0002')
-io.open('DECISIONS.md', 'w', encoding='utf-8').write(s[:i] + s[j:])
-PY
-)
-run_drift 2 "superseded: ADR deleted, git history is the witness" "ADR-0001"
 
 # Budget. The ceiling is lowered rather than the file inflated, so the case
 # stays readable and does not depend on generating 300 lines of filler.
