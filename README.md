@@ -25,6 +25,12 @@ memory as a session gets long.
 Then `/reload-plugins`. Skills install **namespaced** — `/governed-dev:bootstrap`,
 not `/bootstrap`. A "missing" skill is usually this.
 
+To pin to a release, add the marketplace by git URL with a tag ref —
+`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.0` — and note
+that an installed plugin moves only when `plugin.json`'s `version` is bumped
+*and* you run `/plugin update`, so an install left alone stays exactly where it
+was.
+
 **Windows requires Git Bash.** The gate is a bash script; `gates/gate.ps1` finds
 Git Bash and hands off, or fails with install instructions. It never silently
 skips — a gate that only runs on one platform is a gate that silently does not
@@ -34,11 +40,10 @@ run. See ADR-0006.
 
 | | |
 |---|---|
-| **`gate.sh`** | The single executable definition of "done". Six checks: build, tests, lint, working-memory-current, task-ledger-honest, spec-gaps-answered. Exit 0 or 2, never 1 — Claude Code treats exit 1 as non-blocking. Verification only; it never commits, pushes, or writes. |
+| **`gate.sh`** | The single executable definition of "done". Seven checks: build, tests, lint, working-memory-current, task-ledger-honest, spec-gaps-answered, and a structural drift guard over the ledger documents. Exit 0 or 2, never 1 — Claude Code treats exit 1 as non-blocking. Verification only; it never commits, pushes, or writes. |
 | **Ledger documents** | `DESIGN.md` (what the system should be), `CLAUDE.md` (what exists now, line-budgeted), `DECISIONS.md` (why, append-only), `TASKS.md` (what's next, one task per commit). |
 | **Rules** | Document precedence, and what to do at a spec gap: ask, or record the assumption in *both* the code and `DECISIONS.md`. Never invent. |
-
-Agents, skills, and hooks are in progress — see `TASKS.md`.
+| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, five skills (`bootstrap`, `task`, `adr`, `resume`, `amend`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
 
 ## ⚠ Four filenames exist twice, with opposite roles
 
@@ -70,6 +75,7 @@ gate checks 1–3 pass vacuously here. Gate bugs involving real tooling are only
 findable against a scratch project that declares some — which is what
 `gate-regression.sh` builds. Run it after touching anything under `gates/`.
 
-`plugin.json` omits `version` deliberately: the installed version resolves to
-the commit SHA, which is the right default for a solo, actively-iterated tool.
-`claude plugin validate --strict` fails on that one warning by design.
+`plugin.json` declares `version` (ADR-0026, superseding ADR-0001 on this point
+only): a tool other people install needs a version that is a claim rather than a
+moving target. The cost is real — an unbumped commit reaches nobody, so releases
+are deliberate and forgetting to bump is silent.

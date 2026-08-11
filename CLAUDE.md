@@ -98,11 +98,14 @@ plugin installed into other projects. See ADR-0001.
   loop). Govern devseed itself; ship in consumer-facing form, ids and paths
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
-- Plugin/marketplace manifests. `claude plugin validate .` passes with one
-  deliberate warning (`version` omitted; `--strict` unusable until a release
-  is pinned). Published to `github.com/ajf42/devseed`; install loop verified
-  end to end from outside this repo (`marketplace add ajf42/devseed`, then
-  `install governed-dev@ajf42-devtools`).
+- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.0"`
+  (ADR-0026, superseding ADR-0001's omission on distribution only); the
+  marketplace entry stays versionless so the fact has one copy.
+  `claude plugin validate` **has not been re-run since** — no `claude` CLI on
+  this machine — so whether `--strict` now passes is unverified, not
+  assumed (T-035). Published to `github.com/ajf42/devseed`; install loop
+  verified end to end from outside this repo (`marketplace add
+  ajf42/devseed`, then `install governed-dev@ajf42-devtools`).
 - Ledger documents: this file, [`DECISIONS.md`](DECISIONS.md),
   [`TASKS.md`](TASKS.md), and `.claude/activity.jsonl`.
 
@@ -140,10 +143,12 @@ plugin installed into other projects. See ADR-0001.
    Check which directory you are in before editing.
 2. Plugin skills install namespaced — `/governed-dev:bootstrap`, not
    `/bootstrap`. A "missing" skill is usually this.
-3. **An installed plugin is pinned to a commit SHA and goes stale silently.**
-   `plugin.json` omits `version` by design (ADR-0001), so `install` resolves
-   to the SHA at install time and never moves — the local copy sat 11 commits
-   behind HEAD until a `plugin update`, and will drift again. This is why
+3. **An installed plugin never tracks this working tree, and now moves only
+   on a version bump.** Since ADR-0026 `plugin.json` declares `0.1.0`, so an
+   install stays there until the field is bumped — pushing commits alone
+   reaches nobody. (Before it, the version was the commit SHA and an install
+   moved on `plugin update`, which nobody ran: the local copy sat 11 commits
+   behind HEAD.) Either way the installed copy is a copy, which is why
    devseed wires hooks, roster and skills from the working tree, not the
    plugin (ADR-0011, ADR-0014, ADR-0016).
 
@@ -178,7 +183,7 @@ LICENSE                            MIT, © 2026 Andrew Fitzpatrick (T-034)
 .gitignore
 .gitattributes                     forces LF for *.sh on checkout (ADR-0015)
 plugins/governed-dev/              THE PLUGIN — everything below ships
-  .claude-plugin/plugin.json       no "version" key, deliberately
+  .claude-plugin/plugin.json       "version": "0.1.0" (ADR-0026)
   agents/                          THE ROSTER — tools: is the enforcement
     spec-guardian.md               gates in; SANCTIONED/GAP/CONFLICT
     implementer.md                 builds, test-first; denied the 3 ledgers
