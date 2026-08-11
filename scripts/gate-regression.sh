@@ -266,6 +266,26 @@ for KIND in agents skills; do
     "$SHIP_VAR=$SHIP" "$MIRR_VAR=$MIRR"
 done
 
+# --- T-029: CI runs the real gate --------------------------------------------
+# The CI-parity rule (DESIGN.md §5) held only because nobody edited a YAML
+# file. One assertion, per the 2026-08 audit closure: the workflow contains
+# the canonical invocation, tested by a suite CI itself runs. Self-disabling
+# where the workflow is absent -- this suite also runs in consumer contexts.
+echo
+echo "T-029 -- CI invokes the real gate:"
+# Derive the repo root from $GATE, which was resolved to an absolute path at
+# script start -- by now the suite has cd'd into scratch projects, so a
+# relative BASH_SOURCE lookup here would silently self-disable in devseed
+# itself, which is the exact failure mode the assertion exists to catch.
+WF="${GATE%/plugins/governed-dev/gates/gate.sh}/.github/workflows/gate.yml"
+if [ ! -f "$WF" ]; then
+  printf '  note: no .github/workflows/gate.yml -- consumer context, check self-disabled.\n'
+elif grep -q 'bash plugins/governed-dev/gates/gate.sh' "$WF"; then
+  ok "gate.yml carries the canonical line 'bash plugins/governed-dev/gates/gate.sh'"
+else
+  bad "gate.yml exists but lacks the canonical invocation -- CI is not running the real gate"
+fi
+
 echo
 echo "summary: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 2

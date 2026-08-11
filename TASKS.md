@@ -256,6 +256,17 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   needed. This does not answer whether a *consumer* project's CI needs a
   vendored `gate.sh`; that half of SG-0003 stays open, since devseed's own CI
   never exercises it.
+- **CI verification (2026-08-11, Prompt 9a item 1):** as of this writing CI
+  has **never run** — the GitHub API reports zero workflow runs, because
+  `main` was never pushed after `gate.yml` landed (`origin/main` sat at
+  `eb489bd`). A push was authorized and attempted this session but blocked
+  by the credential dialog on a freshly set-up machine. The workflow has
+  since gained the three-leg matrix and the regression suites (T-030), so
+  the **first run ever will be the full matrix run**. Verify it green on all
+  three legs after pushing, and record run id and date here; until then,
+  every gate pass in this repository's history is a Git-Bash-on-Windows
+  pass, and ubuntu/macos are unexercised. A red leg is a platform bug found
+  by the matrix doing its job, and per Prompt 9a it gets an ADR.
 
 ## T-025 — Setup hook installs dependencies
 
@@ -326,7 +337,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   to restore or amend — an unreconciled bypass is the failure mode the system
   exists to prevent; the self-audit re-runs quarterly, and rules that never
   fire are either perfect or dead.
-- **Status:** in-progress (Prompt 9; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `f1ad979`
 - **Deviation from convention:** T-010, T-021 and T-028 land in one commit,
   matching the human's standing choice for prompt-sized work (T-027's note).
 
@@ -471,7 +483,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   forbids and which is the one edit an amendment tool must not make easy;
   distinguishes an amendment from a correction as §6 defines it; does not
   commit (`/task` owns commits).
-- **Status:** in-progress (Prompt 9; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `f1ad979`
 
 ## T-022 — Ticket sync (optional)
 
@@ -523,7 +536,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   mechanism become tasks rather than being built unsanctioned; findings that
   are known, documented tensions are cited to their ADR/SG rather than
   re-reported as new.
-- **Status:** in-progress (Prompt 9; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `f1ad979`
 - **Findings summary** (full report in the Prompt 9 commit message and
   session log): three §5 rules with no mechanical check — the CI-parity rule
   itself, the exit-0/2-never-1 contract, and verification-only/no-side-effects
@@ -552,7 +566,18 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   assertion; each is self-disabling where the file it inspects does not exist
   (consumer projects have no `.github/workflows/gate.yml`); §5's check table
   documents whatever lands, per the correction rule.
-- **Status:** todo (from T-028's findings)
+- **Status:** in-progress (Prompt 9a; commit hash not yet recorded)
+- **Closure note (2026-08-11, human decision — Prompt 9a item 3):** folded
+  into T-030 at minimum size rather than built as specified above. What
+  landed: one assertion in `scripts/gate-regression.sh` — `gate.yml` carries
+  the canonical `bash plugins/governed-dev/gates/gate.sh` invocation,
+  self-disabling with a note where the workflow is absent. What was
+  **declined, deliberately**: the check-inventory parity guard and the §6
+  bypass-reconciliation check — "no new mechanisms; the deliverable of
+  closing an audit cannot be more audit." Bypass reconciliation therefore
+  holds by review, recorded as such in §6 itself. If a bypass ever goes
+  unreconciled in practice, that incident is the evidence a future amendment
+  would cite.
 
 ## T-030 — Run the gate's own regressions in CI
 
@@ -567,4 +592,14 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `agents/` or `templates/`; a no-side-effects assertion (working tree
   byte-identical before and after a full gate run) is added to the regression
   if not already implied by its double-run case.
-- **Status:** todo (from T-028's findings)
+- **Status:** in-progress (Prompt 9a; commit hash not yet recorded)
+- **Built (2026-08-11):** all three suites added to `gate.yml` as
+  unconditional steps on every leg — on all PRs and main pushes rather than
+  path-filtered, since the suites are cheap and a path filter is one more
+  thing to go stale; no `continue-on-error`, no leg exclusions. The workflow
+  also gained the ubuntu/macos/windows matrix (`fail-fast: false`) the human
+  chose during Prompt 9a, plus setup-python and a pytest install — the
+  suites' scratch projects declare a real test suite, and a suite that
+  cannot run is a failed run. The no-side-effects assertion rides implicitly
+  on the double-run case; an explicit byte-identical assertion was not added
+  (minimum-size discipline, same as T-029's fold).

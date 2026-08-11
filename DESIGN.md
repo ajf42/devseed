@@ -218,6 +218,13 @@ These are deliberate, and stated so they are not mistaken for coverage:
 - **Check 7's hook-parity test is self-disabling.** It runs only where a
   project both ships `hooks.json` and mirrors it into `.claude/settings.json`,
   which is devseed's arrangement (ADR-0011) and not a consumer's.
+- **Session-end ledger hygiene is a human habit, not a check.** The gate
+  detects done-without-hash; it cannot detect done-in-fact-but-unrecorded —
+  a task whose completing commit exists while its status still reads
+  in-progress passes every check. Four tasks sat that way across a session
+  boundary (`eb489bd`, recorded a session late). Recording hashes before a
+  session ends is a habit the system depends on and cannot enforce — the
+  same category as "failure messages are instructions."
 
 ## 6. Amendment procedure
 
@@ -296,8 +303,9 @@ carries two obligations:
 
 A bypass that is never reconciled is the failure mode this whole system
 exists to prevent: it is how a governance layer becomes something everyone
-routes around. (Mechanical enforcement of the reconciliation is T-029; until
-it lands, this obligation holds by review.)
+routes around. (This obligation holds by review — mechanical enforcement was
+considered and declined when the 2026-08 audit closed; see T-029's closure
+note. The deliverable of closing an audit cannot be more audit.)
 
 ### The quarterly self-audit
 

@@ -1,10 +1,22 @@
 name: gate
 
-# T-009 -- CI parity. This workflow calls the SAME plugins/governed-dev/gates/gate.sh
-# that runs locally via the Stop and PostToolUse hooks. No forked copy, no
-# reimplemented checks -- see DESIGN.md §5 "CI parity". If a change ever fails
-# here but passes locally (or vice versa), that is a defect in the gate itself,
-# to be fixed in gate.sh, not patched around in this file.
+# T-009 -- CI parity. This workflow calls the SAME plugins/governed-dev/gates/
+# gate.sh that runs locally via the Stop and PostToolUse hooks. No forked copy,
+# no reimplemented checks -- see DESIGN.md §5 "CI parity". If a change ever
+# fails here but passes locally (or vice versa), that is a defect in the gate
+# itself, to be fixed in gate.sh, not patched around in this file.
+#
+# T-030 -- the gate's own tests run here too. The exit-0/2-never-1 rule and the
+# no-side-effects rule are asserted by the three regression suites, which until
+# this workflow ran them were executed by no pipeline at all: CI ran the gate
+# but never the gate's tests. A suite that cannot run is a failed run -- no
+# continue-on-error, no leg exclusions.
+#
+# Three legs (2026-08 audit closure, Prompt 9a). Until the first green matrix
+# run, every gate pass in this repository's history was a Git-Bash-on-Windows
+# pass; ubuntu and macos are unexercised. fail-fast is off so one red leg
+# cannot mask another -- a platform bug found by the matrix is the matrix
+# doing its job, and it gets an ADR when found.
 #
 # SG-0003 (CI half): devseed's own CI checks out devseed itself -- the plugin's
 # source -- so gate.sh is called by its repo-relative path directly. Neither a
@@ -19,16 +31,45 @@ on:
 
 jobs:
   gate:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Git Bash on the windows runner; /bin/bash elsewhere. The gate refuses
+        # to run under anything but bash by design (DESIGN.md §3, ADR-0006).
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
+      # The regression suites' scratch projects declare a real pytest suite,
+      # so python+pytest are prerequisites of the SUITES, not of the gate.
+      # setup-python is the one cross-platform way to get an interpreter the
+      # gate's python_bin() accepts on all three legs.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest (regression-suite prerequisite)
+        run: python -m pip install --quiet pytest
+
       # T-025: preflight.sh is the same script the Setup hook runs locally.
-      # Under $CI it installs missing dependencies (jq) rather than only
-      # reporting them, so this is the "one command" that makes a fresh
-      # checkout gate-ready -- not a second, CI-only setup recipe.
+      # Under $CI it installs missing jq via apt-get where apt-get exists
+      # (ubuntu); macos and windows runner images ship jq already, which
+      # preflight verifies rather than assumes. It also runs gate.sh --fast,
+      # so declared-tooling detection has exactly one implementation.
       - name: Setup (install and verify gate dependencies)
         run: bash plugins/governed-dev/hooks/preflight.sh
 
       - name: Gate (the single definition of done)
         run: bash plugins/governed-dev/gates/gate.sh
+
+      - name: Gate regression (exit codes, self-poisoning, hash resolution, drift)
+        run: bash scripts/gate-regression.sh
+
+      - name: Boundary regression (agent write-boundary denials)
+        run: bash scripts/boundary-regression.sh
+
+      - name: Bootstrap regression (seeded project passes its own drift guard)
+        run: bash scripts/bootstrap-regression.sh

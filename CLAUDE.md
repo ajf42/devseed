@@ -45,22 +45,21 @@ plugin installed into other projects. See ADR-0001.
   Verification only — it writes nothing. Run it as
   `bash plugins/governed-dev/gates/gate.sh`.
 - **The drift guard**, check 7, at `gates/drift.sh`. Asks whether the four
-  ledger documents still describe the repository: duplication, staleness,
-  budget, orphaned ids, deleted ADRs, hook-wiring parity. Unlike checks 1–6 it
-  reports every finding instead of stopping at the first, and runs standalone
-  for CI. Derives its canaries from DESIGN.md at runtime, so editing the spec
-  never means editing the guard. Limits are listed in DESIGN.md §5; ADR-0012
-  says why it is one script rather than six checks.
+  ledger documents still describe the repository (§5's row 7 lists the drift
+  classes). Reports every finding rather than stopping at the first; runs
+  standalone for CI; derives its canaries from DESIGN.md at runtime, so
+  editing the spec never means editing the guard (ADR-0012).
 - **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
   anything under `gates/`.
-- **CI parity** (T-009): `.github/workflows/gate.yml` calls
-  `plugins/governed-dev/gates/gate.sh` directly. Settles SG-0003 for
-  devseed's own CI only (ADR-0020) — a consumer's CI stays open.
-  `preflight.sh` now installs `jq` under `$CI` (ADR-0019). `audit.yml`
-  (T-026) runs the auditor headlessly on a schedule; **not yet exercised** —
-  no `ANTHROPIC_API_KEY` secret yet, plus two unverified details (ADR-0021).
+- **CI parity** (T-009): `gate.yml` runs the real `gate.sh` plus all three
+  regression suites (T-030) on a ubuntu/macos/windows matrix, fail-fast off.
+  **CI has never actually run** — main was never pushed; verify the first
+  matrix run green and record it under T-009. Settles SG-0003 for devseed's
+  own CI only (ADR-0020). `preflight.sh` installs `jq` under `$CI`
+  (ADR-0019). `audit.yml` (T-026) is unexercised — no `ANTHROPIC_API_KEY`
+  secret, two unverified details (ADR-0021).
 - **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
   `hooks.json`; the load-bearing one is `Stop`, which runs the full gate and
   blocks the turn ending on failure. Event table, local mechanics and what
@@ -108,9 +107,10 @@ plugin installed into other projects. See ADR-0001.
 
 **Not built yet:**
 
-- §6's own enforcement (T-029): bypass reconciliation, the CI-parity
-  invocation guard, and check-inventory parity hold by review until built.
-  CI runs the gate but not the gate's regressions (T-030).
+- §6 bypass reconciliation holds by review — mechanical enforcement was
+  declined at audit closure (T-029's note). The CI-invocation assertion
+  landed in `gate-regression.sh`; reviewer/auditor `Bash` accepted
+  permanently (ADR-0024).
 - The roster now exists, so `hooks/boundary.sh` has real agents to bind — but
   it binds **only real subagents**: the main session thread carries no
   `agent_type` and is unbounded (SG-0005). Most work happens on the main
@@ -119,8 +119,8 @@ plugin installed into other projects. See ADR-0001.
   redirect, not a determined evasion through a variable or glob (ADR-0013).
   What carries the weight is the capability boundary — the scribe and
   spec-guardian hold no shell at all.
-- `jq` is installed (1.8.2) but off `PATH` here; `lib.sh` and `drift.sh`
-  locate it by probing winget's install locations.
+- Machine freshly set up 2026-08-11: `jq`, Python 3.12, pytest installed —
+  all off `PATH` for existing shells (winget quirk). `gh` still absent.
 - Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
   tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
   Known limits in §5. Verified against a scratch project that does have tests.

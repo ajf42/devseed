@@ -73,9 +73,9 @@ file and line, proposes nothing and fixes nothing.
 |---|---|---|---|
 | spec-guardian | nothing | everything | An interpreter that can amend will eventually resolve a hard question by amending. |
 | implementer | code, tests, `CLAUDE.md` | `DESIGN.md`, `DECISIONS.md`, `TASKS.md` | These are the records it would edit to grant itself permission — rewriting the spec to clear a wall, or closing a task by declaring it closed. |
-| reviewer | nothing | everything | An agent that can act on its own finding cannot be trusted to report one it would rather not act on. |
+| reviewer | nothing — holds `Bash`; write-boundary best-effort, outputs gated (ADR-0024) | everything | An agent that can act on its own finding cannot be trusted to report one it would rather not act on. |
 | scribe | `CLAUDE.md`, `DECISIONS.md`, `TASKS.md` | code, tests, `DESIGN.md` | An agent that writes both the record and the code can make them agree by changing whichever is more convenient. |
-| auditor | nothing | everything | The trivial fix is how an auditor becomes an editor of the records it audits. |
+| auditor | nothing — holds `Bash`; write-boundary best-effort, outputs gated (ADR-0024) | everything | The trivial fix is how an auditor becomes an editor of the records it audits. |
 
 `CLAUDE.md` is writable by both implementer and scribe, deliberately. It records
 what currently exists, the implementer is required to keep it current, and gate
