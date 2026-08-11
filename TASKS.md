@@ -605,3 +605,53 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   cannot run is a failed run. The no-side-effects assertion rides implicitly
   on the double-run case; an explicit byte-identical assertion was not added
   (minimum-size discipline, same as T-029's fold).
+
+## T-033 — Record the first-matrix-run incident as an ADR
+
+- **Description:** The first CI run in the repository's history failed at
+  check 5 on all three legs. Record the incident as ADR-0025 — accurate to
+  what verification showed, not to the diagnosis offered with the failure:
+  the cause was `gate.yml`'s default depth-1 checkout (no historical hash
+  could resolve), while the suspected awk interval regexes were a real but
+  latent second defect — the check-5-vs-drift copy-drift. Lands *first*,
+  before the fixes: record, then edit.
+- **Acceptance:** ADR-0025 exists in DECISIONS.md with the verified causal
+  chain, the copy-drift finding, the alternatives (bounded depth, lib.sh
+  extraction, installing gawk) and what each rejection trades away; T-031
+  and T-032 cite it.
+- **Status:** in-progress
+- **Commit:** —
+
+## T-031 — First matrix run red: root cause and portability corrections
+
+- **Description:** Fix what made and would next make the matrix red, per
+  ADR-0025: check out with `fetch-depth: 0` in `gate.yml` (the actual
+  failure — a depth-1 clone resolves no historical hash, and also silently
+  guts drift's superseded history walk); normalize the three ERE interval
+  expressions inside awk programs (`drift.sh` done-task scan, `orient.sh`
+  next-task and disagreement scans) to the longhand check 5 already uses;
+  rewrite the two GNU-only `sed -i` uses in `scripts/gate-regression.sh`
+  portably for BSD sed. Everything else the awk/sed/grep audit of `gates/`,
+  `hooks/` and `scripts/` examined was found portable and left untouched.
+- **Acceptance:** gate and all three regression suites pass locally; the
+  full matrix goes green on the next push; no behaviour change on any
+  input on any platform already working — correction, not amendment, §6
+  ratchet n/a.
+- **Status:** todo
+- **Commit:** —
+
+## T-032 — Guard the check 5 / drift.sh duplication
+
+- **Description:** `drift.sh` duplicates check 5's done-task scan
+  deliberately (it also runs standalone), and the copies drifted in regex
+  dialect with nothing comparing them (ADR-0025). Add assertions to
+  `scripts/gate-regression.sh` that the gate (check 5) and standalone
+  `drift.sh` rule the same `TASKS.md` fixtures identically: a done task
+  with a resolving hash passes both; a hashless done task fails both; a
+  fabricated hash fails both. T-029's pattern — an assertion inside the
+  existing suite, not a new check.
+- **Acceptance:** the assertions run in the suite and fail if either copy
+  diverges again on those fixtures; extraction into `gates/lib.sh` stays
+  the recorded fallback if they do (ADR-0025's alternatives).
+- **Status:** todo
+- **Commit:** —
