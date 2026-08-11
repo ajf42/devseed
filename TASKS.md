@@ -715,8 +715,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** the tag points at a commit whose own matrix run is green —
   not at a commit that merely descends from a green one; the README sentence
   states only documented syntax; run id recorded here.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `6b336a6`
 - **Tagged (2026-08-11):** annotated tag `v0.1.0` on `b8c1668`, pushed to
   `origin`. That commit's **own** matrix run is `31536948947` — green on
   ubuntu, macos and windows. The README sentence uses the `#<ref>` git-URL
