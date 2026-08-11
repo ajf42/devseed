@@ -796,8 +796,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `CLAUDE.md` updated in the same commit so the migration does not ship the
   staleness the drift guard exists to catch; gate and all three suites pass;
   full matrix green.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `d1bc2ea`
 - **§6 route note:** the removals rest on §6's **quarterly-self-audit clause**
   ("rules that have never fired… a dead rule kept on the books teaches readers
   that rules here are decorative"), not on its specific-incident clause, which
