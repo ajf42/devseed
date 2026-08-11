@@ -164,7 +164,11 @@ run_drift 2 "staleness: undocumented top-level directory" "vendor/"
 # clean checkout, and a guard that cries wolf gets switched off.
 scaffold_docs
 printf 'scratch/\n' > "$WORK/.gitignore"
-sed -i 's|^docs/ .*|&\nscratch/                           runtime scratch (ignored)|' "$WORK/CLAUDE.md"
+# awk, not `sed -i`: -i without a suffix and \n in a replacement are both GNU
+# sed only -- BSD sed on the macOS leg takes the script as -i's backup suffix
+# and dies (ADR-0025).
+awk '1; /^docs\/ / { print "scratch/                           runtime scratch (ignored)" }' \
+  "$WORK/CLAUDE.md" > "$WORK/CLAUDE.md.new" && mv "$WORK/CLAUDE.md.new" "$WORK/CLAUDE.md"
 ( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm ignore )
 run_drift 0 "gitignored path named but absent is not drift"
 
@@ -193,7 +197,7 @@ printf '\n## ADR-0004 — fourth\nBody.\n' >> "$WORK/DECISIONS.md"
 run_drift 2 "superseded: ADR numbering not contiguous" "ADR-0003"
 
 scaffold_docs
-( cd "$WORK" && python - <<'PY' 2>/dev/null || sed -i '/^## ADR-0001/,/^## ADR-0002/{/^## ADR-0002/!d}' DECISIONS.md
+( cd "$WORK" && python - <<'PY' 2>/dev/null || { awk '/^## ADR-0001/{skip=1} /^## ADR-0002/{skip=0} !skip' DECISIONS.md > DECISIONS.md.new && mv DECISIONS.md.new DECISIONS.md; }   # fallback is awk, not GNU-only `sed -i` (ADR-0025)
 import io
 s = io.open('DECISIONS.md', encoding='utf-8').read()
 i, j = s.index('## ADR-0001'), s.index('## ADR-0002')

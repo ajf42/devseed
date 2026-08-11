@@ -11,6 +11,9 @@ else
   # Emit "<heading>\t<hash>" for every done task. Only "## T-NNN" headings are
   # tasks; prose sections mention "done" and would otherwise be flagged.
   # A hash is 7+ hex characters in backticks -- 'pending' does not match.
+  # Written longhand, not as the ERE interval {7,}: intervals are unsupported
+  # by some awks, and on one of those the match would silently never fire
+  # (ADR-0025). Do not "simplify" it back.
   _rows="$(awk '
     function flush() { if (t != "" && d == 1) printf "%s\t%s\n", t, h }
     /^## /            { flush(); d = 0; h = ""; t = ""

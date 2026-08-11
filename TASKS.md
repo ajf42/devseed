@@ -619,8 +619,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   chain, the copy-drift finding, the alternatives (bounded depth, lib.sh
   extraction, installing gawk) and what each rejection trades away; T-031
   and T-032 cite it.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `0a5d908`
 
 ## T-031 — First matrix run red: root cause and portability corrections
 
@@ -637,7 +637,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   full matrix goes green on the next push; no behaviour change on any
   input on any platform already working — correction, not amendment, §6
   ratchet n/a.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-032 — Guard the check 5 / drift.sh duplication

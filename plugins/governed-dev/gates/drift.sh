@@ -384,6 +384,10 @@ EOF
   # standalone in CI (T-009) where the rest of the gate may not have run.
   [ -f TASKS.md ] || return 0
 
+  # The hash regex is check 5's, kept textually identical on purpose: written
+  # longhand (7+ hex chars in backticks) because ERE interval expressions like
+  # {7,} are not supported by every awk, and on one that lacks them the match
+  # never fires -- every done task would read as hashless (ADR-0025).
   local rows task hash lno
   rows="$(awk '
     function flush() { if (t != "" && d == 1) printf "%s\t%s\t%s\n", tl, t, h }
@@ -391,7 +395,7 @@ EOF
                         if ($0 ~ /^## T-/) { t = $0; tl = FNR }
                         next }
     /\*\*Status:\*\*/ { if ($0 ~ /done/) d = 1 }
-    /\*\*Commit:\*\*/ { if (match($0, /`[0-9a-f]{7,}`/))
+    /\*\*Commit:\*\*/ { if (match($0, /`[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*`/))
                           h = substr($0, RSTART + 1, RLENGTH - 2) }
     END               { flush() }
   ' TASKS.md)"

@@ -42,10 +42,13 @@ COMMITS="$(git log -5 --format='%h %s' 2>/dev/null)"
 # in flight: TASKS.md's convention is that a task stays open until a LATER
 # commit records both its status and its hash, so "no hash" is the honest
 # marker of unfinished, and "done" is not.
+# The hash pattern is written longhand (7 hex chars in backticks) rather than
+# as an ERE interval like {7}: intervals are not supported by every awk, and on
+# one that lacks them the pattern never matches (ADR-0025).
 NEXT="$(awk '
   /^## T-[0-9]+/ { if (id != "" && !hash) { print id " — " title; exit }
                    id=$2; title=$0; sub(/^## T-[0-9]+[^A-Za-z0-9]*/,"",title); hash=0; status="?" }
-  /^- \*\*Commit:\*\*.*`[0-9a-f]{7}/ { hash=1 }
+  /^- \*\*Commit:\*\*.*`[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/ { hash=1 }
   /^- \*\*Status:\*\*/ { s=$0; sub(/^- \*\*Status:\*\* */,"",s); status=s }
   END { if (id != "" && !hash) print id " — " title }
 ' TASKS.md 2>/dev/null | head -1)"
@@ -84,7 +87,7 @@ done <<EOF
 $(awk '
   /^## T-[0-9]+/ { if (id != "" && st ~ /done/) print id "|" h; id=$2; st=""; h="" }
   /^- \*\*Status:\*\*/ { st=$0 }
-  /^- \*\*Commit:\*\*/ { h=$0; if (match(h, /`[0-9a-f]{7,}`/)) h=substr(h, RSTART+1, RLENGTH-2); else h="" }
+  /^- \*\*Commit:\*\*/ { h=$0; if (match(h, /`[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*`/)) h=substr(h, RSTART+1, RLENGTH-2); else h="" }
   END { if (id != "" && st ~ /done/) print id "|" h }
 ' TASKS.md 2>/dev/null)
 EOF

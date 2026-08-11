@@ -42,7 +42,16 @@ jobs:
         # to run under anything but bash by design (DESIGN.md §3, ADR-0006).
         shell: bash
     steps:
+      # Full history, never the default depth-1 clone. Two checks read git
+      # history as evidence: check 5 (and drift's copy of it) resolves every
+      # hash TASKS.md cites -- in a shallow clone none of them resolve, which
+      # is exactly how the first matrix run in this repository's history went
+      # red on all three legs (ADR-0025) -- and drift's superseded check walks
+      # DECISIONS.md's history, which a shallow clone silently truncates to a
+      # pass that proves nothing.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # The regression suites' scratch projects declare a real pytest suite,
       # so python+pytest are prerequisites of the SUITES, not of the gate.
