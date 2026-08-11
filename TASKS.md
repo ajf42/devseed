@@ -764,8 +764,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   where they overlap rather than re-litigated; **no new mechanism, check or
   file created** to resolve any finding; removals proposed to the human, not
   executed.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `9f8cd3c`
 - **Premises corrected from the record (ADR-0027):** two of the three
   motivating claims did not survive checking. `drift.sh` did not produce the
   repository's only production bug — the mawk defect was latent and never
