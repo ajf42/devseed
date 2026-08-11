@@ -173,7 +173,8 @@ TASKS.md                           backlog, one task per commit
 scripts/gate-regression.sh         asserts gate behaviour; devseed-only
 scripts/boundary-regression.sh     asserts boundary.sh denials; devseed-only
 scripts/bootstrap-regression.sh    seeds a scratch project, runs drift.sh
-README.md                          one line; not yet written
+README.md                          what devseed is, install, the sharp edges
+LICENSE                            MIT, © 2026 Andrew Fitzpatrick (T-034)
 .gitignore
 .gitattributes                     forces LF for *.sh on checkout (ADR-0015)
 plugins/governed-dev/              THE PLUGIN — everything below ships
