@@ -566,7 +566,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   assertion; each is self-disabling where the file it inspects does not exist
   (consumer projects have no `.github/workflows/gate.yml`); §5's check table
   documents whatever lands, per the correction rule.
-- **Status:** in-progress (Prompt 9a; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `c0d1db7`
 - **Closure note (2026-08-11, human decision — Prompt 9a item 3):** folded
   into T-030 at minimum size rather than built as specified above. What
   landed: one assertion in `scripts/gate-regression.sh` — `gate.yml` carries
@@ -592,7 +593,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `agents/` or `templates/`; a no-side-effects assertion (working tree
   byte-identical before and after a full gate run) is added to the regression
   if not already implied by its double-run case.
-- **Status:** in-progress (Prompt 9a; commit hash not yet recorded)
+- **Status:** done
+- **Commit:** `c0d1db7`
 - **Built (2026-08-11):** all three suites added to `gate.yml` as
   unconditional steps on every leg — on all PRs and main pushes rather than
   path-filtered, since the suites are cheap and a path filter is one more
