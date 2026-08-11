@@ -37,8 +37,9 @@ plugin installed into other projects. See ADR-0001.
 
 **Built and working:**
 
-- Constitution at [`DESIGN.md`](DESIGN.md). Sections 1–5 substantive.
-  §6 (amendment procedure) is still a placeholder.
+- Constitution at [`DESIGN.md`](DESIGN.md). All six sections substantive —
+  §6 (amendment procedure) filled by Prompt 9 (T-010, ADR-0023). Quarterly
+  self-audit: first run T-028, next due 2026-11-11.
 - **The gate**, at `plugins/governed-dev/gates/`. `gate.sh` orchestrates seven
   checks in `check-*.sh`; `--fast` runs 1–3. Exit 0 pass, 2 fail, never 1.
   Verification only — it writes nothing. Run it as
@@ -61,16 +62,12 @@ plugin installed into other projects. See ADR-0001.
   (T-026) runs the auditor headlessly on a schedule; **not yet exercised** —
   no `ANTHROPIC_API_KEY` secret yet, plus two unverified details (ADR-0021).
 - **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
-  `hooks.json` wire the gate and the agent boundaries into the lifecycle:
-  `Stop` runs the full gate and blocks the turn ending on failure (the
-  load-bearing one), `PreToolUse` denies writes across an agent boundary,
-  `PostToolUse` runs `--fast` on source edits, `SessionStart` briefs the
-  session, `PreCompact` saves in-flight state, `SessionEnd`/`SubagentStop`
-  append to `activity.jsonl`, `Setup` preflights `jq`. Shell form, not exec
-  form (ADR-0010). devseed wires the same eight against its own working tree in
-  [`.claude/settings.json`](.claude/settings.json) (ADR-0011); consumers get
-  them from the plugin. Local mechanics and what bites:
-  [`hooks/README.md`](plugins/governed-dev/hooks/README.md).
+  `hooks.json`; the load-bearing one is `Stop`, which runs the full gate and
+  blocks the turn ending on failure. Event table, local mechanics and what
+  bites: [`hooks/README.md`](plugins/governed-dev/hooks/README.md). Shell
+  form, not exec form (ADR-0010). devseed wires the same eight against its
+  own working tree in [`.claude/settings.json`](.claude/settings.json)
+  (ADR-0011); consumers get them from the plugin.
 - **The agent roster**, five agents at `plugins/governed-dev/agents/`:
   spec-guardian gates in, implementer builds, reviewer gates out, scribe
   records, auditor runs continuously. Every one declares `tools:` explicitly —
@@ -80,13 +77,14 @@ plugin installed into other projects. See ADR-0001.
   [`.claude/rules/delegation.md`](.claude/rules/delegation.md).
   Mirrored to `.claude/agents/` so devseed can run its own roster (ADR-0014);
   drift check 6 enforces the two byte-identical.
-- **The skills**, four at `plugins/governed-dev/skills/`: `bootstrap` seeds a
+- **The skills**, five at `plugins/governed-dev/skills/`: `bootstrap` seeds a
   project from `templates/`; `task` runs a task through the full agent loop
   then commits — the only thing that commits; `adr` appends a decision entry;
-  `resume` reconstructs state from the ledger, changing nothing. Mirrored to
-  `.claude/skills/`, a third mirror on the hooks/roster reasoning (ADR-0016).
-  `task` now trailers commits with agent type, session, task id, model
-  (T-027, ADR-0022), closing SG-0010.
+  `resume` reconstructs state from the ledger, changing nothing; `amend`
+  executes §6 and is the sole sanctioned route to editing DESIGN.md (T-021).
+  Mirrored to `.claude/skills/`, a third mirror on the hooks/roster reasoning
+  (ADR-0016). `task` trailers commits with agent type, session, task id,
+  model (T-027, ADR-0022), closing SG-0010.
 - **The boundary's own regression:** `bash scripts/boundary-regression.sh`.
   73 synthetic `PreToolUse` events. Every defect found in that hook so far was
   invisible to inspection — run it after touching `boundary.sh` or any
@@ -101,21 +99,18 @@ plugin installed into other projects. See ADR-0001.
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
 - Plugin/marketplace manifests. `claude plugin validate .` passes with one
-  warning: `version` is intentionally omitted from `plugin.json`, so the
-  installed version resolves to the commit SHA. `--strict` fails on that
-  warning by design and is unusable until a release is pinned.
-- Published to `github.com/ajf42/devseed`. Install loop verified end to end
-  from a directory outside this repo:
-  `claude plugin marketplace add ajf42/devseed` then
-  `claude plugin install governed-dev@ajf42-devtools`.
+  deliberate warning (`version` omitted; `--strict` unusable until a release
+  is pinned). Published to `github.com/ajf42/devseed`; install loop verified
+  end to end from outside this repo (`marketplace add ajf42/devseed`, then
+  `install governed-dev@ajf42-devtools`).
 - Ledger documents: this file, [`DECISIONS.md`](DECISIONS.md),
   [`TASKS.md`](TASKS.md), and `.claude/activity.jsonl`.
 
 **Not built yet:**
 
-- `/amend` (T-021) stays unbuilt **by decision, not omission** — DESIGN.md §6
-  defers the amendment procedure to Prompt 9/T-010 (ADR-0018). §6 stays a
-  placeholder: there is still no sanctioned route to amend the constitution.
+- §6's own enforcement (T-029): bypass reconciliation, the CI-parity
+  invocation guard, and check-inventory parity hold by review until built.
+  CI runs the gate but not the gate's regressions (T-030).
 - The roster now exists, so `hooks/boundary.sh` has real agents to bind — but
   it binds **only real subagents**: the main session thread carries no
   `agent_type` and is unbounded (SG-0005). Most work happens on the main
@@ -124,9 +119,8 @@ plugin installed into other projects. See ADR-0001.
   redirect, not a determined evasion through a variable or glob (ADR-0013).
   What carries the weight is the capability boundary — the scribe and
   spec-guardian hold no shell at all.
-- Nothing else. `jq` is installed (1.8.2) and `lib.sh` locates it even when it
-  is off `PATH`, which it is here — winget's Links directory only reaches
-  processes started after the install.
+- `jq` is installed (1.8.2) but off `PATH` here; `lib.sh` and `drift.sh`
+  locate it by probing winget's install locations.
 - Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
   tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
   Known limits in §5. Verified against a scratch project that does have tests.
@@ -146,12 +140,11 @@ plugin installed into other projects. See ADR-0001.
 2. Plugin skills install namespaced — `/governed-dev:bootstrap`, not
    `/bootstrap`. A "missing" skill is usually this.
 3. **An installed plugin is pinned to a commit SHA and goes stale silently.**
-   `plugin.json` omits `version` by design (ADR-0001), so `install` resolves to
-   the SHA at install time and never moves. The copy on this machine was
-   pinned at `70542ef` — before the gate existed — until `plugin update` moved
-   it to `f8c9ed9` on 2026-08-05. It will go stale again the same way. This is
-   why devseed wires its own hooks, and mirrors its own roster, from the working
-   tree rather than through the plugin (ADR-0011, ADR-0014).
+   `plugin.json` omits `version` by design (ADR-0001), so `install` resolves
+   to the SHA at install time and never moves — the local copy sat 11 commits
+   behind HEAD until a `plugin update`, and will drift again. This is why
+   devseed wires hooks, roster and skills from the working tree, not the
+   plugin (ADR-0011, ADR-0014, ADR-0016).
 
 ## File structure as it stands
 
@@ -172,7 +165,7 @@ plugin installed into other projects. See ADR-0001.
     ambiguity.md                   spec gaps: ask or record, never invent
     ledger.md                      which document owns which information
     delegation.md                  the agent loop; deciders never record
-DESIGN.md                          constitution (§5, §6 are placeholders)
+DESIGN.md                          constitution, all six sections substantive
 CLAUDE.md                          this file
 DECISIONS.md                       ADR log + spec gaps observed
 TASKS.md                           backlog, one task per commit
@@ -190,11 +183,12 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
     reviewer.md                    gates out; NO FINDINGS is a real result
     scribe.md                      records only; no Write, no shell
     auditor.md                     runs the guards; proposes nothing
-  skills/                          THE SKILLS — bootstrap, task, adr, resume
+  skills/                          THE SKILLS — bootstrap, task, adr, resume, amend
     bootstrap/SKILL.md             seeds templates/ into a fresh project
     task/SKILL.md                  runs a task end to end; the only committer
     adr/SKILL.md                   appends a DECISIONS.md entry
     resume/SKILL.md                reconstructs context from the ledger
+    amend/SKILL.md                 executes §6; sole route to editing DESIGN.md
   gates/                           THE GATE — definition of "done"
     gate.sh                        orchestrator; --fast = checks 1-3
     lib.sh                         die/note/have, changed_files

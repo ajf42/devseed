@@ -213,7 +213,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** Sources documents from `templates/` rather than generating
   prose; installs namespaced as `/governed-dev:bootstrap`; verified against a
   project outside this repo.
-- **Status:** in-progress (commit hash not yet recorded; see note below)
+- **Status:** done
+- **Commit:** `eb489bd`
 - **Note:** whether the seeded project also gets a `.gitattributes` (so a
   Windows-bootstrapped `gate.sh` doesn't reproduce the CRLF defect ADR-0015
   closed in devseed) is resolved — see SG-0008.
@@ -310,10 +311,24 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 
 - **Description:** Fill in `DESIGN.md` §6 — how DESIGN.md itself changes, who
   may amend, what is recorded, and how an amendment differs from a correction.
+  Source: Prompt 9, transcribed in full 2026-08-11 — the earlier criteria
+  below were reconstructed and stand, with the prompt adding four specifics.
 - **Acceptance:** §6 is no longer a placeholder; the procedure is executable by
   a fresh session without asking; it forbids amending DESIGN.md to match
-  drifted code.
-- **Status:** todo (Prompt 9)
+  drifted code. From the source prompt: any rule may be amended, including §6
+  itself; an amendment requires an ADR **before** the change naming the rule,
+  the specific incident that showed it wrong (the rule failed to catch what it
+  existed to catch, or caught what it should not — with an example; "it was
+  slowing us down" is insufficient), the replacement, and what the replacement
+  makes harder; the ratchet — tightening a gate needs no ADR, loosening one
+  always does, asymmetry deliberate; emergency bypass is allowed and expected,
+  requires a commit trailer naming the gate and the reason, and opens a task
+  to restore or amend — an unreconciled bypass is the failure mode the system
+  exists to prevent; the self-audit re-runs quarterly, and rules that never
+  fire are either perfect or dead.
+- **Status:** in-progress (Prompt 9; commit hash not yet recorded)
+- **Deviation from convention:** T-010, T-021 and T-028 land in one commit,
+  matching the human's standing choice for prompt-sized work (T-027's note).
 
 ## T-011 — Return the repository to private
 
@@ -410,7 +425,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   exits non-zero and says what failed, rather than reporting success on a commit
   that only exists locally. Records the commit hash against the task in
   `TASKS.md`, per the hash convention.
-- **Status:** in-progress, built under T-008's commit (hash not yet recorded)
+- **Status:** done
+- **Commit:** `eb489bd`
 - **Deviation from this task's own acceptance text:** it says "refuses to
   commit directly to `main` or `master`, branching first." The skill as built
   commits locally on `main` and withholds the *push*, stating that direct
@@ -426,7 +442,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   entry; refuses to write an entry whose Context names no rejected alternatives,
   since an ADR without them records a preference rather than a decision; marks
   superseded entries rather than removing them.
-- **Status:** in-progress, built under T-008's commit (hash not yet recorded)
+- **Status:** done
+- **Commit:** `eb489bd`
 
 ## T-020 — `/resume` skill
 
@@ -435,23 +452,26 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** Reads `CLAUDE.md`, `TASKS.md`, `DECISIONS.md` and reports what
   exists, what is in progress, and what is next, without exploring the codebase;
   names open spec gaps; does not modify anything.
-- **Status:** in-progress, built under T-008's commit (hash not yet recorded)
+- **Status:** done
+- **Commit:** `eb489bd`
 
 ## T-021 — `/amend` skill
 
 - **Description:** Executes the amendment procedure that T-010 writes into
-  `DESIGN.md` §6. **T-010 currently writes §6 prose with nothing able to run
-  it** — the procedure and its executor are separate tasks, and the procedure
-  alone is advice.
-- **Acceptance:** Executes §6's steps; records the amendment in `DECISIONS.md`;
+  `DESIGN.md` §6. The procedure and its executor are separate tasks, and the
+  procedure alone is advice. Prompt 9 (transcribed 2026-08-11) supplies §6's
+  content, resolving the ordering CONFLICT ADR-0018 recorded: §6 is now
+  written first, from the prompt, and `/amend` implements §6 — not the other
+  way round.
+- **Acceptance:** Executes §6's steps; requires the ADR to exist and be
+  human-approved **before** any edit to `DESIGN.md`; enforces §6's evidence
+  bar (a named incident, not "it was slowing us down"); applies the ratchet —
+  refuses to loosen without an ADR while letting a tightening proceed;
   refuses to amend `DESIGN.md` to match drifted code, which `precedence.md`
-  forbids and which is the one edit an amendment tool must not make easy.
-  Distinguishes an amendment from a correction as §6 defines it.
-- **Status:** todo (Prompt 9, paired with T-010) — stayed unbuilt by decision
-  rather than by omission. See ADR-0018: spec-guardian ruled CONFLICT against
-  building it now, since DESIGN.md §4 and §6 defer the amendment procedure to
-  Prompt 9 and the four-part shape Prompt 7 asked for appears nowhere in
-  DESIGN.md.
+  forbids and which is the one edit an amendment tool must not make easy;
+  distinguishes an amendment from a correction as §6 defines it; does not
+  commit (`/task` owns commits).
+- **Status:** in-progress (Prompt 9; commit hash not yet recorded)
 
 ## T-022 — Ticket sync (optional)
 
@@ -487,3 +507,64 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   restatement.
 - **Status:** done
 - **Commit:** `fd3faea`
+
+## T-028 — Governance self-audit (first run)
+
+- **Description:** Audit the governance layer against itself (Prompt 9):
+  every `DESIGN.md` §5 rule with no corresponding check in `gate.sh` (rules
+  relying on an agent's memory — the failure mode this system exists to
+  eliminate), with a proposed check for each; every `gate.sh` check with no
+  corresponding §5 rule (undocumented constraints — nobody knows why they are
+  failing); every agent whose `tools:` allowlist does not match its stated
+  boundary in `.claude/rules/delegation.md`.
+- **Acceptance:** The audit produces a real list with real gaps — a clean
+  first run means it is not looking hard enough. Findings that are sanctioned
+  corrections (§5 prose behind the script) are applied; findings needing new
+  mechanism become tasks rather than being built unsanctioned; findings that
+  are known, documented tensions are cited to their ADR/SG rather than
+  re-reported as new.
+- **Status:** in-progress (Prompt 9; commit hash not yet recorded)
+- **Findings summary** (full report in the Prompt 9 commit message and
+  session log): three §5 rules with no mechanical check — the CI-parity rule
+  itself, the exit-0/2-never-1 contract, and verification-only/no-side-effects
+  (the latter two asserted only by `scripts/gate-regression.sh`, which CI
+  never runs); one §5 rule not mechanizable at all — "failure messages are
+  instructions" — named as judgment-reliant rather than given a fake check.
+  Three enforced constraints undocumented in §5's check table: ADR-number
+  contiguity, agent/skill mirror byte-parity, and drift's standalone re-check
+  of done-task hashes — corrected in §5 as sanctioned prose-behind-script
+  fixes. Two agents (reviewer, auditor) hold `Bash` while delegation.md's
+  table says they write nothing — the gap is bridged only by the syntactic
+  `PreToolUse` hook, already documented as evadable (ADR-0013); reported as
+  confirmation of a known tension, not a new finding. §6's new rules are born
+  unenforced (bypass reconciliation, quarterly cadence) — tasked as T-029.
+
+## T-029 — Enforce what the self-audit found unenforced
+
+- **Description:** The mechanizable checks T-028 proposed: a drift check that
+  `.github/workflows/gate.yml` still invokes the real `gate.sh` (the CI-parity
+  rule currently holds by nobody editing the workflow); a check-inventory
+  parity guard (§5's numbered check table vs the `check-NN-*.sh` files on
+  disk, so an added or removed check cannot go undocumented); and §6 bypass
+  reconciliation — a commit carrying a `Gate-Bypassed:` trailer must open or
+  cite a task to restore or amend the bypassed gate.
+- **Acceptance:** Each lands as a drift-guard extension with a regression
+  assertion; each is self-disabling where the file it inspects does not exist
+  (consumer projects have no `.github/workflows/gate.yml`); §5's check table
+  documents whatever lands, per the correction rule.
+- **Status:** todo (from T-028's findings)
+
+## T-030 — Run the gate's own regressions in CI
+
+- **Description:** The §5 contract rules — exit 0/2 never 1, and
+  verification-only/no side effects — are asserted only by
+  `scripts/gate-regression.sh`, which runs on no schedule and in no pipeline.
+  CI currently runs the gate but never the gate's tests, so a defect in the
+  gate itself (the single definition of done) has no mechanical detector.
+- **Acceptance:** `gate.yml` (or a sibling workflow) runs
+  `scripts/gate-regression.sh`, `scripts/boundary-regression.sh` and
+  `scripts/bootstrap-regression.sh` on PRs touching `gates/`, `hooks/`,
+  `agents/` or `templates/`; a no-side-effects assertion (working tree
+  byte-identical before and after a full gate run) is added to the regression
+  if not already implied by its double-run case.
+- **Status:** todo (from T-028's findings)

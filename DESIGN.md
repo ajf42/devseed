@@ -114,8 +114,8 @@ deferred — it is out of scope.
 
 | Deferred | Treated instead in |
 |---|---|
-| Build rules — what gates exist, what blocks, what merely warns | **§5 of this document**, filled in by Prompt 3. Placeholder until then. |
-| Amendment procedure — how DESIGN.md changes | **§6 of this document**, filled in by Prompt 9. Placeholder until then. |
+| Build rules — what gates exist, what blocks, what merely warns | **§5 of this document** — filled in by Prompt 3. |
+| Amendment procedure — how DESIGN.md changes | **§6 of this document** — filled in by Prompt 9. |
 | `CLAUDE.md` contents | Written once there is state worth describing. Currently the only state is this scaffold. |
 | `DECISIONS.md` structure beyond "Spec gaps observed" | `DECISIONS.md` itself, at first real entry. `ambiguity.md` already fixes the one section that must exist. |
 | **Speculative** agents and skills | Added when a repeated procedure actually recurs. Speculative agents are unsanctioned constraints wearing a different hat. This does **not** defer the boundary-enforced roster in T-007 — tool boundaries are mechanism, not personas. See ADR-0007. |
@@ -168,7 +168,7 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
 | 4 | Working memory current | Files under `src/` changed but `CLAUDE.md` did not |
 | 5 | Task ledger honest | A `## T-NNN` task is marked `done` with no commit hash |
 | 6 | Spec gaps answered | A `TODO(spec)` marker in a changed file cites no `SG-NNNN` id, or cites one absent from `DECISIONS.md` |
-| 7 | Documents match the repository | `CLAUDE.md` copies a run of a rules section, names a path that is gone, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; an ADR was deleted |
+| 7 | Documents match the repository | `CLAUDE.md` copies a run of a rules section, names a path that is gone, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; an ADR was deleted or its numbering has a hole; a done task's hash fails to resolve (re-checked here so standalone CI runs catch it); a mirrored hook wiring, agent, or skill differs from its shipped copy |
 
 ### Conventions the gate depends on
 
@@ -221,11 +221,92 @@ These are deliberate, and stated so they are not mistaken for coverage:
 
 ## 6. Amendment procedure
 
-> **Placeholder — filled in by Prompt 9.**
->
-> This section defines how DESIGN.md itself changes: what constitutes an
-> amendment, who may make one, what must be recorded, and how an amendment is
-> distinguished from a correction. Until it is written, there is no sanctioned
-> path for editing this document — so do not edit it. Per
-> [`precedence.md`](.claude/rules/precedence.md), never amend it to match drifted
-> code.
+Any rule in this document may be amended, including this procedure. Nothing
+here is sacred. What is forbidden is not change — it is *silent* change: an
+edit that alters what is permitted without leaving a record of who decided,
+on what evidence, and what the edit gave up.
+
+### Amendment vs. correction
+
+- A **correction** changes no constraint: prose catching up to the script it
+  describes (§5's own rule — the script wins and the prose gets fixed), a
+  typo, a broken link, a renumbered reference. Corrections need no ADR and do
+  not go through this procedure.
+- An **amendment** changes what is permitted, required, or forbidden. Every
+  amendment goes through the procedure below. When in doubt, it is an
+  amendment — misfiling an amendment as a correction is the silent change
+  this section exists to prevent, in miniature.
+- Never amend this document to match drifted code
+  ([`precedence.md`](.claude/rules/precedence.md)). That inverts the
+  direction of authority. An amendment is prompted by evidence a rule is
+  wrong, not by the existence of code that violates it.
+
+### The procedure
+
+1. **The ADR comes first** — written and recorded in `DECISIONS.md` before
+   the edit, naming:
+   - **the rule**, quoted as currently written;
+   - **the specific incident** that showed it wrong. The bar: the rule
+     *failed to catch what it existed to catch*, or *caught things it should
+     not have* — with an example of each failure claimed (a commit, a task,
+     a session). "It was slowing us down" is not sufficient; every gate slows
+     you down — that is what a gate is;
+   - **the replacement**, as exact text;
+   - **what the replacement makes harder.** An amendment whose consequences
+     are all upside is advocacy, not a record.
+2. **A human approves the ADR, explicitly**, before anything is edited.
+   Agents draft and propose; the human decides. This is the same allocation
+   the delegation loop already makes for CONFLICT verdicts.
+3. **Then the edit**, citing the ADR by number. The `/amend` skill executes
+   this procedure end to end and refuses to run it out of order. It does not
+   commit — `/task` owns commits.
+
+### The ratchet
+
+**Tightening a gate needs no ADR. Loosening one always does.** Narrowing what
+passes, adding a check, extending coverage — proceed, and record it as a
+correction to §5's table if the table changed. Weakening a check, widening an
+exemption, deleting a rule — that is an amendment, evidence bar and all.
+
+The asymmetry is deliberate. A mistaken tightening announces itself: the gate
+blocks something it should not, someone notices within a commit, and the fix
+carries its own incident report. A mistaken loosening is silent forever — the
+defect it would have caught arrives unannounced, and nothing connects the
+arrival to the loosening. Symmetric ceremony would mean either blocking cheap
+safety or making dangerous edits cheap; this trades the first for never the
+second.
+
+### Emergency bypass
+
+Bypassing a gate in an emergency is allowed and expected — a gate that cannot
+be bypassed under pressure gets deleted under pressure instead. A bypass
+carries two obligations:
+
+1. The commit that bypasses names it in trailers:
+
+   ```
+   Gate-Bypassed: <check name or number>
+   Bypass-Reason: <one line — why waiting was worse>
+   ```
+
+2. The same commit, or the next, **opens a task in `TASKS.md`** to either
+   restore the gate's authority over what was bypassed, or amend the gate via
+   this procedure. One of the two — a bypass is a claim that the gate was
+   wrong *here*, and the claim gets tested.
+
+A bypass that is never reconciled is the failure mode this whole system
+exists to prevent: it is how a governance layer becomes something everyone
+routes around. (Mechanical enforcement of the reconciliation is T-029; until
+it lands, this obligation holds by review.)
+
+### The quarterly self-audit
+
+Every quarter, re-run the governance self-audit (first run: T-028,
+2026-08-11; next due 2026-11-11): §5 rules with no check in `gate.sh`;
+checks in `gate.sh` with no rule in §5; agent allowlists against
+`delegation.md`'s stated boundaries; and — the question only time can ask —
+**rules that have never fired**. A rule that never fires is either perfect or
+dead, and the audit's job is to determine which: a perfect rule's failure
+mode is found in the activity log as attempts it deflected; a dead rule
+deflects nothing because nothing reaches it, and a dead rule kept on the
+books teaches readers that rules here are decorative.
