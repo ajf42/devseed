@@ -54,12 +54,13 @@ plugin installed into other projects. See ADR-0001.
   findable against a scratch project that does — run it after touching
   anything under `gates/`.
 - **CI parity** (T-009): `gate.yml` runs the real `gate.sh` plus all three
-  regression suites (T-030) on a ubuntu/macos/windows matrix, fail-fast off.
-  **CI has never actually run** — main was never pushed; verify the first
-  matrix run green and record it under T-009. Settles SG-0003 for devseed's
-  own CI only (ADR-0020). `preflight.sh` installs `jq` under `$CI`
-  (ADR-0019). `audit.yml` (T-026) is unexercised — no `ANTHROPIC_API_KEY`
-  secret, two unverified details (ADR-0021).
+  regression suites (T-030) on a ubuntu/macos/windows matrix, fail-fast off,
+  `fetch-depth: 0` (ADR-0025). First matrix run green 2026-08-11, run id
+  `31534896418`, recorded under T-009 — after run #1 went red on all legs
+  (ADR-0025). Settles SG-0003 for devseed's own CI only (ADR-0020).
+  `preflight.sh` installs `jq` under `$CI` (ADR-0019). `audit.yml` (T-026)
+  is unexercised — no `ANTHROPIC_API_KEY` secret, two unverified details
+  (ADR-0021).
 - **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
   `hooks.json`; the load-bearing one is `Stop`, which runs the full gate and
   blocks the turn ending on failure. Event table, local mechanics and what

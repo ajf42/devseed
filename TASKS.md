@@ -267,6 +267,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   every gate pass in this repository's history is a Git-Bash-on-Windows
   pass, and ubuntu/macos are unexercised. A red leg is a platform bug found
   by the matrix doing its job, and per Prompt 9a it gets an ADR.
+- **First green matrix run (2026-08-11):** run id `31534896418` (run #2,
+  push of `5759381`) — ubuntu, macos and windows legs all green: gate,
+  gate-regression (46), boundary-regression (73), bootstrap-regression (44).
+  Run #1, the first CI run in the repository's history, failed at check 5
+  on all three legs; the predicted ADR exists as ADR-0025 (shallow
+  checkout, not a platform dialect — plus the latent copy-drift and BSD-sed
+  defects the verification and audit surfaced), corrected by T-031–T-033.
 
 ## T-025 — Setup hook installs dependencies
 
@@ -653,5 +660,5 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** the assertions run in the suite and fail if either copy
   diverges again on those fixtures; extraction into `gates/lib.sh` stays
   the recorded fallback if they do (ADR-0025's alternatives).
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `5759381`
