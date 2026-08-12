@@ -865,8 +865,24 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   covers agreement-continues, SG-stops, gate-failure-retries-once-then-stops,
   run-cap-stops, dirty-tree-refuses, `main`-refuses, and runs in `gate.yml`
   beside the other three. ADR recorded; gate and all four suites green.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `b6003aa`
+- **Three reconciliations, named because they deviate from the instruction:**
+  (1) *"the task's hash recorded"* cannot mean `done` + hash, because `/task`
+  deliberately leaves a task `in-progress` — a commit cannot contain its own
+  hash. Agreement therefore reads the `Task-Id:` trailer (T-027), falling back
+  to `done` + resolving hash. (2) *"create autopilot/DATE if needed"* is
+  implemented behind `--create-branch`; being on the default branch is
+  otherwise a refusal, because moving someone's HEAD unasked is the improvised
+  state ADR-0028 records. Both branch behaviours have cases. (3) the worker is
+  driven as `/task`, not `/governed-dev:task`, wherever the local mirror
+  exists — driving the installed copy would run a plugin pinned at install
+  time, which is what ADR-0016 exists to avoid. Overridable by
+  `AUTOPILOT_TASK_SKILL`.
+- **Not verified:** no `claude` CLI on this machine, so the suite stubs the
+  worker and runs the real gate. The router is tested; that
+  `claude -p "/task T-NNN" --output-format json` behaves as assumed is not.
+  Give the first real run explicit ids and `--max-tasks 1`.
 
 ## T-042 — Compress `CLAUDE.md` back under the warning mark
 
