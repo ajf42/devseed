@@ -49,6 +49,7 @@ and is a skeleton by design.
 | [ADR-0027](docs/adr/0027-complexity-audit.md) | active | Complexity audit before 0.1 |
 | [ADR-0028](docs/adr/0028-three-removals.md) | active | Three removals from the subtraction audit; and the TMPDIR incident, corrected |
 | [ADR-0029](docs/adr/0029-one-file-per-adr.md) | active | One file per ADR, with DECISIONS.md generated as the index |
+| [ADR-0030](docs/adr/0030-autopilot-routes-not-transports.md) | active | Autopilot replaces the human transport layer with routing on the gate's verdict |
 
 ## Spec gaps observed
 
@@ -416,3 +417,55 @@ telling an editor to check the shipped copy.
 
 **Depends on this:** an edit to a root rule leaves consumers on the old text
 indefinitely with nothing reporting it.
+
+### SG-0012 — The `/autopilot` skill ships; its driver script does not
+
+- **Date:** 2026-08-11
+- **Status:** Open — needs human decision
+
+`scripts/autopilot.sh` is devseed's own dev tooling, alongside the three
+regression suites, and nothing under `scripts/` ships in the plugin. The
+skill that wraps it cannot be devseed-local: drift check 6 compares
+`plugins/governed-dev/skills/` against `.claude/skills/` in **both**
+directions, so a mirror-only skill fails the gate. The skill therefore ships
+while the script it drives does not, and a consumer who installs the plugin
+gets `/governed-dev:autopilot` with nothing behind it. DESIGN.md §4 puts
+skills in scope "as genuine need appears" and is silent on whether a driver
+that spawns headless sessions is a consumer-facing capability at all.
+
+**Assumed:** the skill self-disables — it looks for `scripts/autopilot.sh`,
+and where the file is absent it says so and stops, in the same style as
+drift's own self-disabling sub-checks. This is the second instance of the
+coupling ADR-0029 recorded (the shipped gate calling a script that does not
+ship), and the first where the missing half is what the human invoked.
+
+**Depends on this:** if the answer is that consumers should have autopilot,
+the script moves into the plugin and `bootstrap` seeds it, which also makes
+the `claude` CLI a consumer prerequisite the scaffold currently does not
+assume. If the answer is that they should not, the skill should not ship
+either, and the parity guard needs a sanctioned way to say "devseed-only" —
+which today it has none.
+
+### SG-0013 — `TASKS.md` cannot mark a task ineligible for unattended work
+
+- **Date:** 2026-08-11
+- **Status:** Open — needs human decision
+
+Autopilot picks the first task whose status is `todo`, top to bottom. The
+status vocabulary is `todo` / `in-progress` / `done` / `blocked` / `dropped`,
+and none of it distinguishes *ready to be built by anyone* from *ready, but
+this one is a judgement call*. The live instance is **T-022 (ticket sync)**,
+whose status reads `todo — **optional**, may never be built (Prompt 7a)`:
+its first word is `todo`, so it is what an unattended run picks first, and
+"may never be built" is exactly the decision autopilot exists not to make.
+
+**Assumed:** first-`todo` top-to-bottom as specified, with the free-text
+qualifier ignored — parsing prose after the status word would invent a
+convention the ledger never declared, which is the failure `ambiguity.md`
+names. The mitigation is operational, not mechanical: give autopilot explicit
+task ids until this is settled.
+
+**Depends on this:** an unattended run started with no arguments today builds
+an optional task. If the answer is a new status (`deferred`, or a `todo` that
+autopilot skips), `TASKS.md`'s conventions block, the template's, and the
+picker in `autopilot.sh` all change together.

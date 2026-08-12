@@ -839,3 +839,49 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Two pre-existing heading bugs fixed in passing:** ADR-0020 and ADR-0021
   had titles wrapped across two lines, which markdown renders as a heading
   plus a stray paragraph and which truncated their index rows. Joined.
+
+## T-041 — Autopilot: the driver loop above `/task`
+
+- **Description:** The human is currently the transport layer between sessions,
+  hand-carrying output the repository already holds — and twice the carried
+  summary disagreed with the repository (a stale todo list; a fix reported done
+  that was not on `main`). Build `scripts/autopilot.sh`, a bounded driver that
+  runs `/task` headless over the `todo` queue and **routes on the gate's
+  verdict instead of transporting the worker's account of it**: work that agrees
+  with the spec proceeds unattended, disagreements stop the loop and surface.
+  Wrap it in an `/autopilot` skill. The gate is the router — it is already the
+  single definition of agreement, and autopilot adds no second opinion on it.
+- **Acceptance:** preflight refuses a dirty tree, a failing gate, and `main`
+  without `--create-branch`; the worker is invoked with the interactive flow's
+  permissions and **no widened allowlist**; routing is agreement → digest and
+  continue, new `SG-NNNN` / anything `/amend`-shaped / a question for the human
+  → stop (spec), gate exit 2 → one retry with the gate's findings appended then
+  stop (three strikes per task, ADR-0008's counter pattern), anything else →
+  stop; at most `--max-tasks` (default 3) per invocation; every stop and the run
+  cap write `reports/autopilot-DATE.md` in the fixed order DECISIONS NEEDED /
+  COMPLETED WITHOUT YOU / RUN LEDGER, and print its path. Autopilot never edits
+  `DESIGN.md`, never runs `/amend`, never resolves an `SG` entry, never pushes,
+  never merges, and commits nothing but its own report. `scripts/autopilot-regression.sh`
+  covers agreement-continues, SG-stops, gate-failure-retries-once-then-stops,
+  run-cap-stops, dirty-tree-refuses, `main`-refuses, and runs in `gate.yml`
+  beside the other three. ADR recorded; gate and all four suites green.
+- **Status:** in-progress
+- **Commit:** —
+
+## T-042 — Compress `CLAUDE.md` back under the warning mark
+
+- **Description:** `CLAUDE.md` has been past the 250-line warning mark since
+  before T-041 (268 lines at that point, 276 after it, against a 300 ceiling),
+  so every gate run prints a warning nobody acts on — which is how a guard
+  trains its readers to skip its output. T-041 compressed what its own change
+  made redundant and stopped there rather than mixing a restructure into a
+  feature commit. Do the pass properly, routing detail by the compression
+  protocol's table: constraints to `DESIGN.md`, rationale to a `docs/adr/`
+  entry, per-directory mechanics to that directory's `README.md`, pending work
+  here, superseded state deleted outright.
+- **Acceptance:** `CLAUDE.md` at or under 250 lines with no fact lost — every
+  removed passage either moved to its owning document with a one-line pointer
+  left behind, or was superseded state git already holds; the gate reports no
+  drift warning; the structure block still names every top-level directory.
+- **Status:** todo
+- **Commit:** —
