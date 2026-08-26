@@ -916,5 +916,5 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   template only as a value the gate rejects, if at all; a `TASKS.md` written by
   following the template verbatim passes check 5; all four regression suites
   still pass.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `c2a03bb`
