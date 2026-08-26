@@ -901,3 +901,20 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   drift warning; the structure block still names every top-level directory.
 - **Status:** todo
 - **Commit:** —
+
+## T-043 — `templates/TASKS.md` documents a state the gate rejects
+
+- **Description:** The shipped template's Conventions section sanctions
+  `Commit: pending` for a task marked `done`. Check 5 exits 2 on exactly that
+  state. The correction was made in devseed's own `TASKS.md`, in
+  `agents/scribe.md`, and in `DESIGN.md` §5, and never propagated to the
+  template, so every bootstrapped project inherits the pre-correction
+  convention and is blocked on its first completed task by a failure message
+  instructing it to record a hash that does not exist yet.
+- **Acceptance:** the template's Conventions bullet describes the two-commit
+  flow and names check 5 as the enforcer; the word `pending` appears in the
+  template only as a value the gate rejects, if at all; a `TASKS.md` written by
+  following the template verbatim passes check 5; all four regression suites
+  still pass.
+- **Status:** done
+- **Commit:** `c2a03bb`

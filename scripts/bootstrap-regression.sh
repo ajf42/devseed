@@ -144,6 +144,101 @@ done
 grep -rq 'devseed' "$TEMPLATES/rules/"; [ $? -ne 0 ]
 check $? "templates/rules/ does not mention devseed"
 
+printf '\n== 7. the shipped TASKS.md convention agrees with gate check 5 ==\n'
+# A convention document that sanctions a state the gate rejects blocks the
+# consumer on their first completed task, with a failure message telling them
+# to record a hash that does not exist yet. The template is the one copy of
+# this convention nothing was comparing against the check that enforces it.
+#
+# Run against $TARGET from section 4 -- a real git repo seeded from the real
+# templates -- with the real gate.sh, so the ruling is observed, not assumed.
+GATE="$ROOT/plugins/governed-dev/gates/gate.sh"
+
+# seed_ledger <status> <commit-field>: reset the seeded ledger and append one
+# task in the given state. The task heading is the template's own skeleton id.
+seed_ledger() {
+  git -C "$TARGET" checkout -- . >/dev/null 2>&1
+  printf '\n## T-001 — first task\n\n- **Status:** %s\n- **Commit:** %s\n' \
+    "$1" "$2" >> "$TARGET/TASKS.md"
+}
+gate_in_target() {         # want desc
+  local want="$1" desc="$2" got
+  ( cd "$TARGET" && bash "$GATE" ) >"$SCRATCH/gate.out" 2>&1; got=$?
+  [ "$got" -ne 1 ] || bad "$desc RETURNED 1 -- exit 1 does not block"
+  [ "$got" -eq "$want" ]; check $? "$desc (wanted exit $want, got $got)"
+}
+
+# The two states the two-commit flow passes through. Both must pass, or the
+# flow the template describes cannot be followed to the end.
+seed_ledger 'in-progress' '—'
+gate_in_target 0 "in-progress with no hash yet passes the gate"
+seed_ledger 'done' "\`$(git -C "$TARGET" rev-parse --short=8 HEAD)\`"
+gate_in_target 0 "done with a resolving hash passes the gate"
+
+# And the state the pre-correction convention sanctioned. Asserted here rather
+# than taken on trust: it is the fact the rest of this section rests on.
+seed_ledger 'done' '`pending`'
+gate_in_target 2 "done with \`pending\` is rejected by the gate"
+grep -q '5/7 task ledger' "$SCRATCH/gate.out"
+check $? "...and it is check 5 that rejects it"
+
+# The commit-hash bullet, joined into one string. Everything below reads this
+# rather than the whole file, so an assertion cannot pass because some other
+# bullet happens to contain the word.
+BULLET="$(awk '
+  /^- \*\*Commit hash\*\*/                { f = 1 }
+  f && /^- / && !/^- \*\*Commit hash\*\*/ { f = 0 }
+  f                                       { line = line " " $0 }
+  END { print line }
+' "$TEMPLATES/TASKS.md")"
+
+# Every value the template OFFERS for the Commit field must be one the gate
+# accepts. "Offers" is read narrowly and mechanically: an inline-code token on
+# the commit-hash bullet, in a sentence that does not say the gate rejects it.
+# A token the template names only to forbid is not an offer.
+#
+# Status values and filenames are dropped -- the bullet cites `gate.sh` and
+# `done` as prose, not as things to put in the Commit field. Sentence splitting
+# is awk, not `sed 's/\. /.\n/'`: \n in a replacement is GNU-only (ADR-0025).
+OFFERED="$(printf '%s\n' "$BULLET" | awk '
+  { n = split($0, s, /\. /)
+    for (i = 1; i <= n; i++) if (s[i] !~ /reject/) print s[i] }
+' | grep -o '`[^`]*`' | tr -d '`' | sort -u)"
+
+OFFENDING=0
+while IFS= read -r tok; do
+  [ -n "$tok" ] || continue
+  case "$tok" in
+    todo|in-progress|done|blocked|dropped) continue ;;
+    *.*|*' '*)                             continue ;;
+  esac
+  OFFENDING=$((OFFENDING+1))
+  seed_ledger 'done' "\`$tok\`"
+  gate_in_target 0 "the Commit value the template offers (\`$tok\`) survives the gate"
+done <<EOF
+$OFFERED
+EOF
+[ "$OFFENDING" -eq 0 ] && ok "the commit bullet offers no literal Commit value (nothing to reject)"
+
+# Criterion 2 restated over the whole file: `pending` may appear only as a
+# value the gate rejects. Sentence-scoped, since the rejection clause wraps.
+STRAY="$(awk '{ line = line " " $0 }
+  END { n = split(line, s, /\. /)
+        for (i = 1; i <= n; i++) if (s[i] ~ /pending/ && s[i] !~ /reject/) print s[i] }
+' "$TEMPLATES/TASKS.md")"
+[ -z "$STRAY" ] || printf '    sanctions it: %s\n' "$STRAY" >&2
+[ -z "$STRAY" ]; check $? "templates/TASKS.md names \`pending\` only as a rejected value"
+
+# The bullet must point at the enforcer and at the state to hold meanwhile,
+# or a consumer hitting the failure has nothing to read. Guards the section
+# above from passing because the bullet stopped saying anything at all.
+case "$BULLET" in *'check 5'*) true ;; *) false ;; esac
+check $? "the commit bullet names check 5 as the enforcer"
+case "$BULLET" in *'in-progress'*) true ;; *) false ;; esac
+check $? "the commit bullet names in-progress as the in-between state"
+
+git -C "$TARGET" checkout -- . >/dev/null 2>&1
+
 printf '\n---------------------------------------------\n'
 printf 'bootstrap-regression: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 2
