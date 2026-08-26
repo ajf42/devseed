@@ -47,22 +47,19 @@ plugin installed into other projects. See ADR-0001.
 - **The drift guard**, check 7, at `gates/drift.sh`. Asks whether the four
   ledger documents still describe the repository (§5's row 7 lists the drift
   classes). Reports every finding rather than stopping at the first; runs
-  standalone for CI. **Five sub-checks since ADR-0028**, which removed the
-  duplication check and the ADR-deletion history walk as dead rules — what
-  each was watching for, and what is now unguarded, is in that ADR and in
-  §5's Known limits.
+  standalone for CI. **Five sub-checks since ADR-0028** — what the two removed
+  ones watched for, and what is now unguarded, is in that ADR and §5's Known
+  limits.
 - **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
   anything under `gates/`.
-- **CI parity** (T-009): `gate.yml` runs the real `gate.sh` plus all three
-  regression suites (T-030) on a ubuntu/macos/windows matrix, fail-fast off,
-  `fetch-depth: 0` (ADR-0025). First matrix run green 2026-08-11, run id
-  `31534896418`, recorded under T-009 — after run #1 went red on all legs
-  (ADR-0025). Settles SG-0003 for devseed's own CI only (ADR-0020).
-  `preflight.sh` installs `jq` under `$CI` (ADR-0019). `audit.yml` was
-  **deleted** (ADR-0028): six runs in the repository's history, all `gate`,
-  and it could not run without a secret it never had. T-026 is unbuilt again.
+- **CI parity** (T-009): `gate.yml` runs the real `gate.sh` plus all four
+  regression suites (T-030, T-041) on a ubuntu/macos/windows matrix, fail-fast
+  off, `fetch-depth: 0` (ADR-0025). First matrix run green 2026-08-11, run id
+  `31534896418`, under T-009. Settles SG-0003 for devseed's own CI only
+  (ADR-0020). `preflight.sh` installs `jq` under `$CI` (ADR-0019). `audit.yml`
+  was **deleted** (ADR-0028), so T-026 is unbuilt again.
 - **The hooks**, at `plugins/governed-dev/hooks/`. Eight entries in
   `hooks.json`; the load-bearing one is `Stop`, which runs the full gate and
   blocks the turn ending on failure. Event table, local mechanics and what
@@ -79,11 +76,12 @@ plugin installed into other projects. See ADR-0001.
   [`.claude/rules/delegation.md`](.claude/rules/delegation.md).
   Mirrored to `.claude/agents/` so devseed can run its own roster (ADR-0014);
   drift check 6 enforces the two byte-identical.
-- **The skills**, five at `plugins/governed-dev/skills/`: `bootstrap` seeds a
+- **The skills**, six at `plugins/governed-dev/skills/`: `bootstrap` seeds a
   project from `templates/`; `task` runs a task through the full agent loop
   then commits — the only thing that commits; `adr` appends a decision entry;
   `resume` reconstructs state from the ledger, changing nothing; `amend`
-  executes §6 and is the sole sanctioned route to editing DESIGN.md (T-021).
+  executes §6 and is the sole sanctioned route to editing DESIGN.md (T-021);
+  `autopilot` wraps the driver loop below.
   Mirrored to `.claude/skills/`, a third mirror on the hooks/roster reasoning
   (ADR-0016). `task` trailers commits with agent type, session, task id,
   model (T-027, ADR-0022), closing SG-0010.
@@ -94,6 +92,18 @@ plugin installed into other projects. See ADR-0001.
 - **The bootstrap skill's own regression:** `bash scripts/bootstrap-regression.sh`.
   Seeds a scratch project and runs the real drift guard against it — caught
   dangling devseed ids in the shipped templates before T-008 landed.
+- **Autopilot**, `bash scripts/autopilot.sh` and the `/autopilot` skill (T-041,
+  ADR-0030). Runs `/task` headless over the `todo` queue and **routes on the
+  gate's verdict**, which it obtains by running the gate itself — never on the
+  worker's account of its own correctness. Agreement → one digest line and
+  continue; a new SG entry, anything `/amend`-shaped, a question, or any edit
+  to DESIGN.md → stop; gate exit 2 → one retry with the findings appended, then
+  stop; anything else → stop. Bounded: 3 tasks per run, a cost ceiling, three
+  strikes per task. It never touches DESIGN.md, never pushes, never merges, and
+  commits only `reports/`. Its own regression, with a stubbed worker and the
+  real gate: `bash scripts/autopilot-regression.sh`. **Never run against a real
+  worker yet** — no `claude` CLI here; the first real run wants explicit ids
+  and `--max-tasks 1`.
 - Four rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority), `ambiguity.md` (never invent past a spec gap),
   `ledger.md` (which document owns which fact), `delegation.md` (the agent
@@ -101,13 +111,11 @@ plugin installed into other projects. See ADR-0001.
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
 - Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.0"`
-  (ADR-0026, superseding ADR-0001's omission on distribution only); the
-  marketplace entry stays versionless so the fact has one copy.
+  (ADR-0026); the marketplace entry stays versionless so the fact has one copy.
   `claude plugin validate` **has not been re-run since** — no `claude` CLI on
-  this machine — so whether `--strict` now passes is unverified, not
-  assumed (T-035). Published to `github.com/ajf42/devseed`; install loop
-  verified end to end from outside this repo (`marketplace add
-  ajf42/devseed`, then `install governed-dev@ajf42-devtools`).
+  this machine — so whether `--strict` now passes is unverified, not assumed
+  (T-035). Published to `github.com/ajf42/devseed`; install loop verified end
+  to end from outside this repo.
 - Ledger documents: this file, [`TASKS.md`](TASKS.md),
   `.claude/activity.jsonl`, and the ADRs — **one file each under
   [`docs/adr/`](docs/adr/)** since ADR-0029, with
@@ -143,7 +151,7 @@ plugin installed into other projects. See ADR-0001.
 - Repository visibility is **public**; private was required. `gh` is not
   installed on this machine. Open as SG-0002.
 
-**Two facts that bite if forgotten:**
+**Three facts that bite if forgotten:**
 
 1. Four filenames exist twice with opposite roles. Root `DESIGN.md`,
    `CLAUDE.md`, `DECISIONS.md`, `TASKS.md` govern devseed and are never
@@ -151,14 +159,10 @@ plugin installed into other projects. See ADR-0001.
    Check which directory you are in before editing.
 2. Plugin skills install namespaced — `/governed-dev:bootstrap`, not
    `/bootstrap`. A "missing" skill is usually this.
-3. **An installed plugin never tracks this working tree, and now moves only
-   on a version bump.** Since ADR-0026 `plugin.json` declares `0.1.0`, so an
-   install stays there until the field is bumped — pushing commits alone
-   reaches nobody. (Before it, the version was the commit SHA and an install
-   moved on `plugin update`, which nobody ran: the local copy sat 11 commits
-   behind HEAD.) Either way the installed copy is a copy, which is why
-   devseed wires hooks, roster and skills from the working tree, not the
-   plugin (ADR-0011, ADR-0014, ADR-0016).
+3. **An installed plugin never tracks this working tree**, and since ADR-0026
+   moves only on a version bump: pushing commits alone reaches nobody. The
+   installed copy is a copy, which is why devseed wires hooks, roster and
+   skills from the working tree instead (ADR-0011, ADR-0014, ADR-0016).
 
 ## File structure as it stands
 
@@ -188,6 +192,10 @@ scripts/rebuild-adr-index.sh       regenerates DECISIONS.md; the gate never runs
 scripts/gate-regression.sh         asserts gate behaviour; devseed-only
 scripts/boundary-regression.sh     asserts boundary.sh denials; devseed-only
 scripts/bootstrap-regression.sh    seeds a scratch project, runs drift.sh
+scripts/autopilot.sh               drives /task headless, routes on the gate (ADR-0030)
+scripts/autopilot-regression.sh    asserts the routing; stub worker, real gate
+reports/                           autopilot run reports: the decision queue
+  README.md                        what lands here and how to read it
 README.md                          what devseed is, install, the sharp edges
 LICENSE                            MIT, © 2026 Andrew Fitzpatrick (T-034)
 .gitignore
@@ -206,6 +214,7 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
     adr/SKILL.md                   appends a DECISIONS.md entry
     resume/SKILL.md                reconstructs context from the ledger
     amend/SKILL.md                 executes §6; sole route to editing DESIGN.md
+    autopilot/SKILL.md             drives scripts/autopilot.sh; surfaces its report
   gates/                           THE GATE — definition of "done"
     gate.sh                        orchestrator; --fast = checks 1-3
     lib.sh                         die/note/have, changed_files

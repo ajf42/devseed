@@ -82,3 +82,13 @@ jobs:
 
       - name: Bootstrap regression (seeded project passes its own drift guard)
         run: bash scripts/bootstrap-regression.sh
+
+      # T-041. Autopilot's worker is stubbed here -- `claude` is not on a
+      # runner and would not be driven by CI if it were -- but the GATE it
+      # routes on is the real one, run against a scratch project. So what
+      # this leg asserts is the router: which way autopilot went given a
+      # repository in a known state. A suite no pipeline runs asserts
+      # nothing, which is T-030's own lesson and the reason this line exists
+      # in the same commit as the suite.
+      - name: Autopilot regression (routing, bounds, and the refusals)
+        run: bash scripts/autopilot-regression.sh

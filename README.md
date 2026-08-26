@@ -43,7 +43,7 @@ run. See ADR-0006.
 | **`gate.sh`** | The single executable definition of "done". Seven checks: build, tests, lint, working-memory-current, task-ledger-honest, spec-gaps-answered, and a structural drift guard over the ledger documents. Exit 0 or 2, never 1 — Claude Code treats exit 1 as non-blocking. Verification only; it never commits, pushes, or writes. |
 | **Ledger documents** | `DESIGN.md` (what the system should be), `CLAUDE.md` (what exists now, line-budgeted), `DECISIONS.md` (why, append-only), `TASKS.md` (what's next, one task per commit). |
 | **Rules** | Document precedence, and what to do at a spec gap: ask, or record the assumption in *both* the code and `DECISIONS.md`. Never invent. |
-| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, five skills (`bootstrap`, `task`, `adr`, `resume`, `amend`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
+| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, six skills (`bootstrap`, `task`, `adr`, `resume`, `amend`, `autopilot`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
 
 ## A working session
 
@@ -120,8 +120,17 @@ usable.
 ```
 bash plugins/governed-dev/gates/gate.sh    # the gate, against this repo
 bash scripts/gate-regression.sh            # the gate's own regression suite
+bash scripts/boundary-regression.sh        # the agent write-boundary's
+bash scripts/bootstrap-regression.sh       # a seeded project's own drift guard
+bash scripts/autopilot-regression.sh       # autopilot's routing
 claude plugin validate .                   # manifests
 ```
+
+`scripts/autopilot.sh` runs `/task` headless over the `todo` queue and stops
+the moment anything disagrees with the spec, writing what needs deciding to
+`reports/`. It routes on the gate's verdict, which it obtains by running the
+gate — not on the worker's report of it. It never touches `DESIGN.md`, never
+pushes, and commits nothing but its own report. See ADR-0030.
 
 devseed has no build, no tests, and no linter of its own (`DESIGN.md` §3), so
 gate checks 1–3 pass vacuously here. Gate bugs involving real tooling are only
