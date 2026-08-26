@@ -13,9 +13,12 @@ Backlog.
 - **Acceptance criteria are written before the work starts**, not after. A task
   whose criteria are written afterward is a description of what happened, and
   cannot fail.
-- **Commit hash** is recorded when the task is done. Because a commit cannot
-  contain its own hash, the hash is filled in by the *next* commit that touches
-  this file; `pending` is the correct value in between.
+- **Commit hash** is recorded when the task is done, and `gate.sh` check 5
+  enforces it: a task marked `done` without a hash fails the gate. Because a
+  commit cannot contain its own hash, a task finished in the current commit
+  stays `in-progress` until the *next* commit records both its status and its
+  hash. Do not park `pending` in the Commit field — the gate rejects it, which
+  is the intended behaviour.
 - Tasks that turn out to be spec gaps move to `DECISIONS.md` under "Spec gaps
   observed" and are marked `blocked` here with a pointer.
 
