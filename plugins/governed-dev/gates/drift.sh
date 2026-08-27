@@ -114,6 +114,42 @@ BEGIN { top = 0 }
 }
 '
 
+# A path the structure block names must be portable -- present in a fresh clone,
+# not merely present on the machine that wrote the line. Tracking is what makes
+# it so; existence on disk is not, and the difference is invisible locally. An
+# untracked, un-ignored file satisfies `-e` for its author and is absent for
+# everyone else, so the guard goes green for the one person able to act on it
+# and exits 2 on every clone -- the local/CI disagreement DESIGN.md 5 already
+# calls a defect in the gate, arriving in its more dangerous direction.
+#
+# Ignored paths keep their exemption unconditionally, including when absent:
+# .claude/in-flight.md and .claude/.hook-state/ are runtime state that exists
+# only mid-session, and reporting their absence would make the guard cry wolf
+# on every clean checkout. A guard that cries wolf gets switched off.
+
+# The tracked set is read once. Asking git per path -- `ls-files --error-unmatch`
+# on each of the block's ~100 entries -- costs a process spawn each time, which
+# on Windows is measured in tenths of a second and turned a slow check into a
+# visibly slower one. Membership is tested against this string in-process
+# instead. `git check-ignore` is still a spawn, but only for the few paths that
+# fail the tracked test, which is the cost profile this check had before.
+_TRACKED="$(git ls-files 2>/dev/null)"
+
+path_is_portable() {
+  # Tracked means it arrives in a clone. A trailing slash is a directory, and
+  # `git ls-files` emits files only, so a directory is tracked when it prefixes
+  # one.
+  case $'\n'"$_TRACKED"$'\n' in
+    *$'\n'"$1"$'\n'*) [ -e "$1" ] && return 0 ;;
+  esac
+  case "$1" in
+    */) case $'\n'"$_TRACKED" in
+          *$'\n'"$1"*) [ -e "$1" ] && return 0 ;;
+        esac ;;
+  esac
+  git check-ignore -q -- "$1" 2>/dev/null
+}
+
 check_staleness() {
   if [ ! -f CLAUDE.md ]; then
     skip "check 1 (staleness): no CLAUDE.md -- nothing to check."
@@ -134,27 +170,38 @@ check_staleness() {
 
     case "$path" in
       *[*?[]*)
-        # A glob stands for a family of files. One match is enough; zero means
-        # the family named in the documentation is gone.
+        # A glob stands for a family of files. One *portable* match is enough.
+        # Zero matches on disk means the family named in the documentation is
+        # gone; matches that are all local-only mean it was never there for
+        # anyone but the author -- see path_is_portable above.
         matches=( $path )
-        [ -e "${matches[0]}" ] && continue
-        drift "CLAUDE.md:$line" \
+        if [ ! -e "${matches[0]}" ]; then
+          drift "CLAUDE.md:$line" \
 "the structure block names \`$path\`, which matches nothing on disk." \
 "restore the files, or correct the pattern in CLAUDE.md's structure block. A structure block is read as the map of the repository; a path in it that resolves to nothing sends the next session looking for something that is not there."
+          continue
+        fi
+        for m in "${matches[@]}"; do
+          path_is_portable "$m" && continue 2
+        done
+        drift "CLAUDE.md:$line" \
+"the structure block names \`$path\`, which matches only untracked files that git does not ignore." \
+"commit them, add them to .gitignore if they are runtime state, or delete the line from CLAUDE.md's structure block. A structure block is read as the map of the repository, and a pattern matching only files this machine has maps a repository only this machine has: the gate passes here and exits 2 on every clone. Which of the three is right is a judgement about the files, not one the gate can make."
         continue
         ;;
     esac
 
-    [ -e "$path" ] && continue
+    path_is_portable "$path" && continue
 
-    # Ignored paths are runtime state, not structure -- .claude/in-flight.md
-    # and .claude/.hook-state/ exist only mid-session. Their absence is normal
-    # and must not be reported as drift.
-    if git check-ignore -q -- "$path" 2>/dev/null; then continue; fi
-
-    drift "CLAUDE.md:$line" \
+    if [ -e "$path" ]; then
+      drift "CLAUDE.md:$line" \
+"the structure block names \`$path\`, which exists here but is untracked and not ignored by git." \
+"commit it, add it to .gitignore if it is runtime state, or delete the line from CLAUDE.md's structure block. A structure block is read as the map of the repository, and a path only this machine has maps a repository only this machine has: the gate passes here and exits 2 on every clone. Which of the three is right is a judgement about the file, not one the gate can make."
+    else
+      drift "CLAUDE.md:$line" \
 "the structure block names \`$path\`, which does not exist." \
 "create it, or delete the line from CLAUDE.md's structure block. If the path is generated at runtime, add it to .gitignore -- ignored paths are exempt from this check."
+    fi
   done <<EOF
 $rows
 EOF

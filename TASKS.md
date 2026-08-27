@@ -944,7 +944,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `gate-regression.sh` gains coverage for the untracked-but-present case; all
   four regression suites pass; `DESIGN.md` §5's check-7 table row says the path
   must be committed.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-045 — `templates/DESIGN.md` §5 and §6 ship as skeletons, which deadlocks the consumer
