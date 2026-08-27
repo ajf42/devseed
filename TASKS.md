@@ -901,3 +901,210 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   drift warning; the structure block still names every top-level directory.
 - **Status:** todo
 - **Commit:** —
+
+## T-043 — `templates/TASKS.md` documents a state the gate rejects
+
+- **Description:** The shipped template's Conventions section sanctions
+  `Commit: pending` for a task marked `done`. Check 5 exits 2 on exactly that
+  state. The correction was made in devseed's own `TASKS.md`, in
+  `agents/scribe.md`, and in `DESIGN.md` §5, and never propagated to the
+  template, so every bootstrapped project inherits the pre-correction
+  convention and is blocked on its first completed task by a failure message
+  instructing it to record a hash that does not exist yet.
+- **Acceptance:** the template's Conventions bullet describes the two-commit
+  flow and names check 5 as the enforcer; the word `pending` appears in the
+  template only as a value the gate rejects, if at all; a `TASKS.md` written by
+  following the template verbatim passes check 5; all four regression suites
+  still pass.
+- **Status:** done
+- **Commit:** `c2a03bb`
+
+## T-044 — Drift check 1 tests the filesystem, so it passes locally and fails on every clone
+
+- **Description:** `drift.sh`'s `check_staleness()` and the glob branch above
+  it both gate on `[ -e "$path" ]`. Existence on disk is not portability: a
+  path that is untracked, un-ignored, and present only on the author's machine
+  satisfies `-e` for him and is absent for everyone else. Observed live — a
+  bootstrapped project's structure block named `install.cmd` and `claude`, both
+  untracked and un-ignored, and the gate was green locally while exiting 2 on a
+  fresh clone. §5's CI-parity rule already names this class: a local/CI
+  disagreement is a defect in the gate. The direction is the dangerous one, a
+  false green for the person most likely to act on it. Test tracking with
+  `git ls-files --error-unmatch` before falling back to existence, preserving
+  the `.gitignore` exemption that `.claude/in-flight.md` and
+  `.claude/.hook-state/` depend on. This is a tightening under §6's ratchet and
+  proceeds without an ADR; the §5 check-7 table row it touches is then updated
+  as a correction.
+- **Acceptance:** a `CLAUDE.md` naming an untracked, un-ignored path that
+  exists on disk exits 2, with a message naming all three resolutions (commit
+  it, gitignore it, or delete the line) and stating why the condition is a
+  problem; a tracked path still passes; a gitignored path still passes,
+  including one absent from disk; an absent un-ignored path still fails as
+  before; the same treatment is applied to the glob branch;
+  `gate-regression.sh` gains coverage for the untracked-but-present case; all
+  four regression suites pass; `DESIGN.md` §5's check-7 table row says the path
+  must be committed.
+- **Status:** in-progress
+- **Commit:** —
+
+## T-045 — `templates/DESIGN.md` §5 and §6 ship as skeletons, which deadlocks the consumer
+
+- **Description:** The template ships §6 as a comment ending "Until this
+  section is written, there is no sanctioned path for editing this document",
+  while its own header says changes to the file go through §6 and nothing else,
+  and `skills/amend/SKILL.md` says it executes §6 in §6's order. The only
+  sanctioned route to editing DESIGN.md requires §6, and writing §6 requires
+  editing DESIGN.md. Observed live — bootstrap correctly disclosed two of its
+  own inferences and pointed at §6 to overturn them, and §6 was empty. §6 is
+  mechanism, not opinion: it is the procedure `/amend` implements, and `/amend`
+  ships to every consumer. Hand-inventing it produces a second amendment
+  procedure with no maintainer, diverging from the skill that actually runs —
+  the same argument bootstrap already makes about not generating a second
+  `gate.sh`. §5 gets the same treatment by the same reasoning, decided with the
+  human and recorded in the ADR this task writes: seed the gate's mechanism,
+  prompt for the project's own build rules. A skeleton section is currently silent and should cost
+  something, so bootstrap records a spec gap for every section it leaves
+  skeletal.
+- **Acceptance:** a freshly bootstrapped project has a §6 `/amend` can execute
+  without further human input, and `/amend` run immediately after bootstrap
+  reaches its first real question rather than refusing for want of a procedure;
+  §5 ships the seeded gate mechanism (exit-code contract, "a check that cannot
+  run is a failed check", CI parity, the seven-check table, the conventions the
+  gate depends on) with the project's own build rules left as a prompted slot;
+  both sections state their relationship to the shipped procedure, including
+  that a project which rewrites them takes on maintaining both;
+  `bootstrap/SKILL.md` instructs an `SG-NNNN` entry under "Spec gaps observed"
+  for every section left skeletal, naming the section, what it does not say,
+  what is unenforced or unreachable while it stays empty, and the shape of a
+  resolution; no devseed-specific id, date, or path appears in the seeded text;
+  `bootstrap-regression.sh` covers the seeded §6 and §5 and passes, and its
+  existing check that no shipped template cites a devseed ADR or SG number
+  still passes; a new ADR at the next free number records the decision with the
+  rejected alternative (interviewing for §6) and what seeding makes harder; all
+  four suites pass.
+- **Status:** todo
+- **Commit:** —
+
+## T-046 — `drift.sh`: batch the per-item spawns
+
+- **Description:** Every expensive drift sub-check spawns one or more processes
+  *per item* where one process for the whole batch would do. Measured on the
+  development machine (Windows 11, Git Bash, Defender real-time already off —
+  this is MSYS2 fork emulation): a spawn costs ~100 ms, ~170 ms for `git`,
+  against ~1–2 ms on Linux. `check_orphans` 68.0 s (one `grep` plus `sort` per
+  tracked file, 224 spawns, plus an `ls` per citation, 257–500);
+  `check_superseded` 8.6 s (a `printf` piped to `grep -q` per ADR number to
+  answer set membership, 60 spawns); `check_staleness` 10.8 s
+  (`git check-ignore` per path, 64). Item counts are small; spawn counts are
+  not. No check does too much work — every expensive check does its work in too
+  many processes, which is why batching changes no verdict. Same
+  works-on-my-machine direction as T-044, one layer down: invisible to a Linux
+  author, paid by every Windows consumer on every turn. `check_budget` and the
+  three parity checks are already cheap and are out of scope. Two ordering
+  semantics must be preserved exactly, both verified against the current code
+  rather than assumed: the per-file `sort -u -t: -k2` dedupes by **id**, so a
+  repeated citation in one file is reported once at the lexically smallest
+  `line:id`, and it orders findings **by id, not by line**.
+- **Acceptance:** byte-identical stdout, stderr and exit code, CR stripped,
+  against a pre-change capture over twelve fixtures — devseed clean, the inline
+  `DECISIONS.md` layout, the per-file layout with an archive, all four
+  `check_staleness` states, an untracked glob, orphan ADR and SG citations, an
+  ADR numbering hole, and done tasks with missing and fabricated hashes; the
+  four-state staleness verdict from T-044 unchanged; both ADR layouts still
+  handled; `DECISIONS.md` and `activity.jsonl` still excluded from the citation
+  scan; binary files skipped explicitly rather than emitting "Binary file
+  matches" into the parse; no `ENDFILE` and no ERE interval expressions
+  (ADR-0025 — the CI matrix runs mawk); all four regression suites green;
+  full-gate wall-clock before and after recorded in the closure note.
+- **Status:** in-progress
+- **Commit:** —
+
+## T-047 — `rebuild-adr-index.sh`: one pass, not fourteen per ADR
+
+- **Description:** The generator extracts id, title and status with three
+  `sed` piped to `head` pairs, two or three `grep`s for the superseded parsing,
+  and an `ls` piped to `head` for the path — roughly 10–14 spawns per ADR file,
+  about 390 across the thirty, 38.9 s measured in isolation. `check_adr_index`
+  runs the generator's `--print` mode to verify the committed index, so the
+  generator's cost is the check's cost: 50.0 s, 35 per cent of the gate. Replace
+  the per-file extraction with a single `awk` pass over `docs/adr/*.md` and
+  `docs/adr/archive/*.md` emitting id, status, title and path, with the
+  superseded-status parsing moved into the same program. The generator remains
+  the single implementation of the derivation — this changes how it reads, not
+  what it derives.
+- **Acceptance:** `bash scripts/rebuild-adr-index.sh --print` byte-identical to
+  the pre-change capture, CR stripped; the same command diffed against
+  `DECISIONS.md` is empty CR-insensitively, so the committed index is unchanged;
+  the three status classes (active, superseded in part, superseded by ADR-NNNN)
+  still resolve as before; archived ADRs still resolve and still occupy their
+  numbers; no `ENDFILE` and no ERE intervals (ADR-0025); all four suites green;
+  before and after wall-clock in the closure note.
+- **Status:** todo
+- **Commit:** —
+
+## T-048 — hooks: one `jq` per event, and the encoding landmine
+
+- **Description:** `hook_field()` pipes the event JSON into a fresh `jq` on
+  every call. `boundary.sh` calls it four times plus the `hook_root`,
+  `hook_state_dir` and slug helpers — roughly 17 spawns before it does any
+  thinking, 1.7 s on every Edit, Write, NotebookEdit, Bash and PowerShell call
+  in every governed session. This is the change a consumer feels most, because
+  it is per-keystroke rather than per-turn. Three parts. First, a
+  `hook_fields()` that extracts every needed field in one `jq` invocation;
+  `hook_field()` stays for single-field callers. Second, the encoding hazard,
+  verified rather than supposed: a command string may contain literal tabs and
+  newlines, boundary decisions are made on that text (ADR-0013), and
+  `jq -r` with `@tsv` escapes both into backslash sequences that a naive
+  read-split does not undo — a command containing a tab and a newline comes back
+  as a different string and would be ruled on differently. A delimiter-safe
+  encoding is required. Third, `boundary.sh` line 57 is
+  `[ -n "$AGENT" ] || exit 0`: an absent `agent_type` means the main session,
+  which is allowed unconditionally (SG-0005) — and it is allowed *after* three
+  `jq` spawns it never needed. Reading `agent_type` first and exiting before
+  extracting anything else makes the dominant path cost one `jq`. SG-0005's
+  marker and reasoning are unchanged; only their cost is.
+- **Acceptance:** all 81 `boundary-regression.sh` cases pass unchanged; a new
+  case covering an event whose command contains a literal tab and a literal
+  newline asserts the boundary reads the command intact and rules on it
+  identically to the pre-change code; the main-session allow path invokes `jq`
+  once and the count is stated in the commit message; no verdict changes for any
+  input; per-call wall-clock before and after in the closure note, noting that
+  `bash` startup alone costs about 100 ms here so sub-300 ms is not reachable.
+- **Status:** todo
+- **Commit:** —
+
+## T-049 — `gate-regression.sh`: capture once, assert many
+
+- **Description:** `run_drift` re-invokes `drift.sh` for every assertion, so
+  asserting N things about one fixture costs N full runs. T-044's cases run it
+  four times against a single unchanged fixture to check four substrings of one
+  message; three of those runs are waste, and the pattern invites more of the
+  same. Run once, capture stdout, stderr and the exit code, then assert the exit
+  code and N substrings against the captured text. No fixture changes and no
+  assertion changes — the same strings are checked against the same output,
+  produced once instead of N times. The suite also inherits T-046 and T-047
+  underneath it.
+- **Acceptance:** identical pass and fail case counts across all four suites
+  before and after; the gate and drift invocation count in `gate-regression.sh`
+  stated before and after; total suite wall-clock before and after recorded; no
+  fixture and no asserted string altered.
+- **Status:** todo
+- **Commit:** —
+
+## T-050 — Parallel regression-suite runner
+
+- **Description:** The four suites run sequentially and cost 799 s together
+  (`autopilot` 384, `gate` 235, `boundary` 137, `bootstrap` 43, measured before
+  T-046). They use PID- and `mktemp`-scoped work directories
+  (`gate-regression.sh` line 16, `autopilot-regression.sh` line 28,
+  `bootstrap-regression.sh` line 31), which makes concurrent execution *look*
+  safe. That is an assertion tested nowhere, and establishing it is this task's
+  first job, not an assumption to build on. Filed separately from T-046 to T-049
+  deliberately: those are subtractive — the same work in fewer processes, proved
+  byte-identical against a capture — whereas a runner is new harness code, and
+  new harness code validated on one machine is the class that produced the
+  Linux-only interval regex (ADR-0025) and the `TMPDIR` incident (ADR-0028).
+  Batching must land and be measured before concurrency shares a diff with it.
+- **Acceptance:** written when the task is started, not now.
+- **Status:** todo
+- **Commit:** —

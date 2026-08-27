@@ -47,9 +47,12 @@ plugin installed into other projects. See ADR-0001.
 - **The drift guard**, check 7, at `gates/drift.sh`. Asks whether the four
   ledger documents still describe the repository (§5's row 7 lists the drift
   classes). Reports every finding rather than stopping at the first; runs
-  standalone for CI. **Five sub-checks since ADR-0028** — what the two removed
-  ones watched for, and what is now unguarded, is in that ADR and §5's Known
-  limits.
+  standalone for CI. A path the structure block names must be **tracked**, not
+  merely present on disk (T-044) — untracked and un-ignored is drift. Its checks
+  are **batch-first**: one pass over many items, membership tested in-process
+  (ADR-0031). Do not reintroduce a shell-out per file, per citation or per id.
+  **Five sub-checks since ADR-0028** — what the two removed ones watched for,
+  and what is now unguarded, is in that ADR and §5's Known limits.
 - **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
   no test suite of its own, so gate bugs involving real tooling are only
   findable against a scratch project that does — run it after touching
@@ -90,8 +93,8 @@ plugin installed into other projects. See ADR-0001.
   invisible to inspection — run it after touching `boundary.sh` or any
   `tools:` list.
 - **The bootstrap skill's own regression:** `bash scripts/bootstrap-regression.sh`.
-  Seeds a scratch project and runs the real drift guard against it — caught
-  dangling devseed ids in the shipped templates before T-008 landed.
+  Seeds a scratch project and runs the real drift guard and gate on it — caught
+  dangling template ids (T-008) and a shipped convention the gate rejects (T-043).
 - **Autopilot**, `bash scripts/autopilot.sh` and the `/autopilot` skill (T-041,
   ADR-0030). Runs `/task` headless over the `todo` queue and **routes on the
   gate's verdict**, which it obtains by running the gate itself — never on the
@@ -191,7 +194,7 @@ docs/adr/                          one file per ADR, NNNN-slug.md (ADR-0029)
 scripts/rebuild-adr-index.sh       regenerates DECISIONS.md; the gate never runs it
 scripts/gate-regression.sh         asserts gate behaviour; devseed-only
 scripts/boundary-regression.sh     asserts boundary.sh denials; devseed-only
-scripts/bootstrap-regression.sh    seeds a scratch project, runs drift.sh
+scripts/bootstrap-regression.sh    seeds a scratch project, runs drift.sh + gate.sh
 scripts/autopilot.sh               drives /task headless, routes on the gate (ADR-0030)
 scripts/autopilot-regression.sh    asserts the routing; stub worker, real gate
 reports/                           autopilot run reports: the decision queue

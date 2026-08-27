@@ -169,7 +169,7 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
 | 4 | Working memory current | Files under `src/` changed but `CLAUDE.md` did not |
 | 5 | Task ledger honest | A `## T-NNN` task is marked `done` with no commit hash |
 | 6 | Spec gaps answered | A `TODO(spec)` marker in a changed file cites no `SG-NNNN` id, or cites one absent from `DECISIONS.md` |
-| 7 | Documents match the repository | `CLAUDE.md` names a path that is gone, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; ADR numbering has a hole; a done task's hash fails to resolve (re-checked here so standalone CI runs catch it); a generated ADR index disagrees with `docs/adr/`; a mirrored hook wiring, agent, or skill differs from its shipped copy |
+| 7 | Documents match the repository | `CLAUDE.md` names a path that is gone or that is not committed, omits a directory that exists, or breaks its line budget; a cited `ADR-NNNN`/`SG-NNNN` has no entry; ADR numbering has a hole; a done task's hash fails to resolve (re-checked here so standalone CI runs catch it); a generated ADR index disagrees with `docs/adr/`; a mirrored hook wiring, agent, or skill differs from its shipped copy |
 
 ### Conventions the gate depends on
 
@@ -184,8 +184,12 @@ Checks run cheapest-first; `--fast` runs 1–3 only, for the per-edit hook.
 - `CLAUDE.md`'s structure block is an indented tree inside a fenced code block,
   under a heading naming *structure*. Indentation picks the parent; the first
   run of two or more spaces ends the path column and begins commentary, which
-  check 7 ignores. A `.gitignore`d path is exempt from having to exist, since
-  ignored paths are runtime state rather than structure.
+  check 7 ignores. A path the block names must be **tracked**, not merely
+  present on disk: existence is a fact about one machine, and an untracked,
+  un-ignored file passes locally while failing in every clone — the CI-parity
+  defect above, arriving in the direction that shows the author a green gate.
+  A `.gitignore`d path is exempt from having to exist at all, since ignored
+  paths are runtime state rather than structure.
 
 ### Known limits
 
