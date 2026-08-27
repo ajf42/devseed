@@ -918,3 +918,69 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   still pass.
 - **Status:** done
 - **Commit:** `c2a03bb`
+
+## T-044 — Drift check 1 tests the filesystem, so it passes locally and fails on every clone
+
+- **Description:** `drift.sh`'s `check_staleness()` and the glob branch above
+  it both gate on `[ -e "$path" ]`. Existence on disk is not portability: a
+  path that is untracked, un-ignored, and present only on the author's machine
+  satisfies `-e` for him and is absent for everyone else. Observed live — a
+  bootstrapped project's structure block named `install.cmd` and `claude`, both
+  untracked and un-ignored, and the gate was green locally while exiting 2 on a
+  fresh clone. §5's CI-parity rule already names this class: a local/CI
+  disagreement is a defect in the gate. The direction is the dangerous one, a
+  false green for the person most likely to act on it. Test tracking with
+  `git ls-files --error-unmatch` before falling back to existence, preserving
+  the `.gitignore` exemption that `.claude/in-flight.md` and
+  `.claude/.hook-state/` depend on. This is a tightening under §6's ratchet and
+  proceeds without an ADR; the §5 check-7 table row it touches is then updated
+  as a correction.
+- **Acceptance:** a `CLAUDE.md` naming an untracked, un-ignored path that
+  exists on disk exits 2, with a message naming all three resolutions (commit
+  it, gitignore it, or delete the line) and stating why the condition is a
+  problem; a tracked path still passes; a gitignored path still passes,
+  including one absent from disk; an absent un-ignored path still fails as
+  before; the same treatment is applied to the glob branch;
+  `gate-regression.sh` gains coverage for the untracked-but-present case; all
+  four regression suites pass; `DESIGN.md` §5's check-7 table row says the path
+  must be committed.
+- **Status:** todo
+- **Commit:** —
+
+## T-045 — `templates/DESIGN.md` §5 and §6 ship as skeletons, which deadlocks the consumer
+
+- **Description:** The template ships §6 as a comment ending "Until this
+  section is written, there is no sanctioned path for editing this document",
+  while its own header says changes to the file go through §6 and nothing else,
+  and `skills/amend/SKILL.md` says it executes §6 in §6's order. The only
+  sanctioned route to editing DESIGN.md requires §6, and writing §6 requires
+  editing DESIGN.md. Observed live — bootstrap correctly disclosed two of its
+  own inferences and pointed at §6 to overturn them, and §6 was empty. §6 is
+  mechanism, not opinion: it is the procedure `/amend` implements, and `/amend`
+  ships to every consumer. Hand-inventing it produces a second amendment
+  procedure with no maintainer, diverging from the skill that actually runs —
+  the same argument bootstrap already makes about not generating a second
+  `gate.sh`. §5 gets the same treatment by the same reasoning, decided with the
+  human and recorded in the ADR this task writes: seed the gate's mechanism,
+  prompt for the project's own build rules. A skeleton section is currently silent and should cost
+  something, so bootstrap records a spec gap for every section it leaves
+  skeletal.
+- **Acceptance:** a freshly bootstrapped project has a §6 `/amend` can execute
+  without further human input, and `/amend` run immediately after bootstrap
+  reaches its first real question rather than refusing for want of a procedure;
+  §5 ships the seeded gate mechanism (exit-code contract, "a check that cannot
+  run is a failed check", CI parity, the seven-check table, the conventions the
+  gate depends on) with the project's own build rules left as a prompted slot;
+  both sections state their relationship to the shipped procedure, including
+  that a project which rewrites them takes on maintaining both;
+  `bootstrap/SKILL.md` instructs an `SG-NNNN` entry under "Spec gaps observed"
+  for every section left skeletal, naming the section, what it does not say,
+  what is unenforced or unreachable while it stays empty, and the shape of a
+  resolution; no devseed-specific id, date, or path appears in the seeded text;
+  `bootstrap-regression.sh` covers the seeded §6 and §5 and passes, and its
+  existing check that no shipped template cites a devseed ADR or SG number
+  still passes; a new ADR at the next free number records the decision with the
+  rejected alternative (interviewing for §6) and what seeding makes harder; all
+  four suites pass.
+- **Status:** todo
+- **Commit:** —
