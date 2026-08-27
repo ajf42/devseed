@@ -50,6 +50,7 @@ and is a skeleton by design.
 | [ADR-0028](docs/adr/0028-three-removals.md) | active | Three removals from the subtraction audit; and the TMPDIR incident, corrected |
 | [ADR-0029](docs/adr/0029-one-file-per-adr.md) | active | One file per ADR, with DECISIONS.md generated as the index |
 | [ADR-0030](docs/adr/0030-autopilot-routes-not-transports.md) | active | Autopilot replaces the human transport layer with routing on the gate's verdict |
+| [ADR-0031](docs/adr/0031-spawn-count-is-the-cost-model.md) | active | Process spawns are the gate's unit of cost; checks are written batch-first |
 
 ## Spec gaps observed
 

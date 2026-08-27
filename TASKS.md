@@ -1016,7 +1016,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   matches" into the parse; no `ENDFILE` and no ERE interval expressions
   (ADR-0025 — the CI matrix runs mawk); all four regression suites green;
   full-gate wall-clock before and after recorded in the closure note.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-047 — `rebuild-adr-index.sh`: one pass, not fourteen per ADR

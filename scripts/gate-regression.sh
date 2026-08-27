@@ -211,6 +211,38 @@ awk '1; /^docs\/ / { print "tools/                             helpers"; print "
 ( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm "track the glob" )
 run_drift 0 "tracked path and tracked glob still pass"
 
+# T-046: the citation scan was batched into one grep over the whole tree, and
+# two of its ordering rules are load-bearing but invisible in the output of a
+# passing repository. Both were established against the pre-batching code, not
+# assumed, and neither is obvious from reading the batched version:
+#
+#   - findings are ordered by ID, not by line, so an SG cited on an earlier
+#     line is reported AFTER an ADR cited on a later one;
+#   - a file citing one id twice reports it ONCE, at the lower line number.
+#
+# Without this case a future simplification of the awk could reverse either and
+# every suite would still pass.
+scaffold_docs
+_A1="ADR-00"; _A1="${_A1}97"
+_A2="ADR-00"; _A2="${_A2}98"
+_S1="SG-00";  _S1="${_S1}97"
+{ printf '# cites %s\n' "$_S1"
+  printf '# nothing here\n'
+  printf '# cites %s\n' "$_A2"
+  printf '# cites %s again\n' "$_A2"
+  printf '# cites %s\n' "$_A1"
+} > "$WORK/src/order.py"
+( cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -qm order )
+_ORDER="$( cd "$WORK" && bash "$DRIFT" 2>&1 | sed -n 's/^  cites \([A-Z][A-Z]*-[0-9][0-9]*\).*/\1/p' )"
+_WANT="$(printf '%s\n%s\n%s\n' "$_A1" "$_A2" "$_S1")"
+if [ "$_ORDER" = "$_WANT" ]; then
+  ok "orphan findings are ordered by id, and a repeated id is reported once"
+else
+  bad "orphan finding order/dedupe changed -- wanted [$(printf '%s' "$_WANT" | tr '\n' ' ')], got [$(printf '%s' "$_ORDER" | tr '\n' ' ')]"
+fi
+# ...and the surviving citation is the FIRST one, line 3, not the second on 4.
+run_drift 2 "a repeated id reports its lowest line" "src/order.py:3"
+
 # Orphans: an id cited in code that resolves to no entry in DECISIONS.md.
 #
 # The fixture ids are assembled at runtime rather than written literally, so

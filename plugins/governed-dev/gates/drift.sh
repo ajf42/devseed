@@ -135,6 +135,18 @@ BEGIN { top = 0 }
 # fail the tracked test, which is the cost profile this check had before.
 _TRACKED="$(git ls-files 2>/dev/null)"
 
+# A literal tab, computed once. `IFS="$(printf '\t')" read` looks harmless, but
+# the assignment prefixing a command is re-expanded every time that command
+# runs -- so as the prefix of a `while ... read` it forks a subshell PER ROW.
+# That cost 12.4 s across 258 citations here, more than the scan it was reading.
+# Hoisting it out is the single largest saving in this file (ADR-0031).
+_TAB="$(printf '\t')"
+
+# The ignored set, filled by check_staleness before it evaluates anything. Was
+# one `git check-ignore` spawn per path; now one for all of them (ADR-0031).
+# Initialised here because `set -u` is on and path_is_portable reads it.
+_IGNORED=""
+
 path_is_portable() {
   # Tracked means it arrives in a clone. A trailing slash is a directory, and
   # `git ls-files` emits files only, so a directory is tracked when it prefixes
@@ -147,7 +159,10 @@ path_is_portable() {
           *$'\n'"$1"*) [ -e "$1" ] && return 0 ;;
         esac ;;
   esac
-  git check-ignore -q -- "$1" 2>/dev/null
+  case "$_IGNORED" in
+    *" $1 "*) return 0 ;;
+  esac
+  return 1
 }
 
 check_staleness() {
@@ -164,8 +179,33 @@ check_staleness() {
     return
   fi
 
-  local line path matches
-  while IFS="$(printf '\t')" read -r line path; do
+  # PASS ONE -- collect. Every path the block names, plus every file its globs
+  # expand to, goes to `git check-ignore --stdin` in a single spawn. The old
+  # code asked git once per path: 64 spawns here, ~100 ms each under Git Bash.
+  # Collecting first is what makes one call possible; the verdict logic below
+  # is unchanged (ADR-0031).
+  local line path matches m _cand
+  _cand=""
+  while IFS="$_TAB" read -r line path; do
+    [ -n "${path:-}" ] || continue
+    case "$path" in
+      *[*?[]*) matches=( $path )
+               for m in "${matches[@]}"; do _cand="$_cand$m
+"; done ;;
+      *)       _cand="$_cand$path
+" ;;
+    esac
+  done <<EOF
+$rows
+EOF
+
+  if [ -n "$_cand" ]; then
+    # check-ignore exits 1 when nothing is ignored, which is not an error here.
+    _IGNORED=" $(printf '%s' "$_cand" | git check-ignore --stdin 2>/dev/null | tr '\n' ' ')"
+  fi
+
+  # PASS TWO -- evaluate. Identical to the pre-batching logic.
+  while IFS="$_TAB" read -r line path; do
     [ -n "${path:-}" ] || continue
 
     case "$path" in
@@ -267,17 +307,6 @@ check_budget() {
 ADR_DIR="${DRIFT_ADR_DIR:-docs/adr}"
 ADR_ARCHIVE="${DRIFT_ADR_ARCHIVE:-docs/adr/archive}"
 
-# adr_resolves <ADR-NNNN> -- true if the id has an entry in either layout.
-adr_resolves() {
-  local id="$1" num="${1#ADR-}"
-  if [ -d "$ADR_DIR" ]; then
-    ls "$ADR_DIR/$num"-*.md >/dev/null 2>&1 && return 0
-    ls "$ADR_ARCHIVE/$num"-*.md >/dev/null 2>&1 && return 0
-    return 1
-  fi
-  grep -q "^## $id\b" DECISIONS.md 2>/dev/null
-}
-
 check_orphans() {
   require_git
 
@@ -288,40 +317,86 @@ check_orphans() {
     # DEFINED, and the activity log, which is machine-written and append-only:
     # a stale id in the audit trail is history, not drift, and correcting it by
     # hand would be the real violation (ADR-0003).
-    local files line f lno ident
-    files="$(git ls-files 2>/dev/null | grep -v '^DECISIONS\.md$' | grep -v '^\.claude/activity\.jsonl$')"
+    # THE ID SETS ARE BUILT ONCE, not once per citation. `adr_resolves` used to
+    # run `ls` on every reference -- 257 spawns on this repository -- and the
+    # SG branch a `grep` on every reference. Both sets are assembled with a
+    # fixed number of spawns and then tested in-process with `case`, which
+    # spawns nothing (ADR-0031).
+    #
+    # The extractions are anchored so a longer id cannot satisfy a shorter one:
+    # `ls 0001-*.md` never matched `00012-x.md`, and neither does the sed.
+    local f lno ident _adrs _sgs _cites
+    if [ -d "$ADR_DIR" ]; then
+      _adrs=" $( { ls "$ADR_DIR" "$ADR_ARCHIVE" 2>/dev/null; } \
+                 | sed -n 's/^\([0-9][0-9][0-9][0-9]\)-.*\.md$/ADR-\1/p' \
+                 | sort -u | tr '\n' ' ')"
+    else
+      _adrs=" $(sed -n 's/^## \(ADR-[0-9][0-9][0-9][0-9]\)\([^0-9].*\)*$/\1/p' \
+                 DECISIONS.md 2>/dev/null | sort -u | tr '\n' ' ')"
+    fi
+    _sgs=" $(sed -n 's/^### \(SG-[0-9][0-9][0-9][0-9]\)\([^0-9].*\)*$/\1/p' \
+              DECISIONS.md 2>/dev/null | sort -u | tr '\n' ' ')"
 
-    while IFS= read -r f; do
-      [ -n "$f" ] && [ -f "$f" ] || continue
-      # grep -no gives "<line>:<id>" -- the number and the matched id and
-      # nothing else, which is exactly the pair this needs.
-      while IFS= read -r line; do
-        [ -n "$line" ] || continue
-        lno="${line%%:*}"
-        ident="${line#*:}"
-        case "$ident" in
-          ADR-*) adr_resolves "$ident" && continue
-                 if [ -d "$ADR_DIR" ]; then
-                   drift "$f:$lno" \
+    # ONE grep over every tracked file. Was one grep plus one sort per file --
+    # 224 spawns here. /dev/null is passed so grep always has a file argument:
+    # it keeps the filename prefix on when the list holds a single entry, and
+    # stops grep reading stdin when the list is empty, which would otherwise
+    # hang. -I skips binaries explicitly rather than letting "Binary file ...
+    # matches" into the parse.
+    _cites="$(git ls-files -z 2>/dev/null \
+      | grep -zv '^DECISIONS\.md$' \
+      | grep -zv '^\.claude/activity\.jsonl$' \
+      | xargs -0 grep -IHnoE '(ADR|SG)-[0-9]{4}' /dev/null 2>/dev/null)"
+
+    # The awk below reproduces the per-file `sort -u -t: -k2` this loop used to
+    # run, which does two things worth stating because neither is obvious and
+    # both were confirmed against the old code rather than assumed:
+    #   - it dedupes by ID, so a file citing one id twice reports it once;
+    #   - `sort -u` keeps the FIRST record of an equal-key run, so the citation
+    #     kept is the lowest-numbered line, grep emitting in line order;
+    #   - and it orders findings by ID, not by line.
+    # Files stay in `git ls-files` order, so the file index is assigned on
+    # first sight and sorted numerically. No ERE intervals inside awk and no
+    # ENDFILE: the CI matrix runs mawk (ADR-0025).
+    while IFS="$_TAB" read -r f lno ident; do
+      [ -n "${ident:-}" ] || continue
+      case "$ident" in
+        ADR-*) case "$_adrs" in *" $ident "*) continue ;; esac
+               if [ -d "$ADR_DIR" ]; then
+                 drift "$f:$lno" \
 "cites $ident, which matches no file in $ADR_DIR/ or $ADR_ARCHIVE/." \
 "add the ADR as $ADR_DIR/${ident#ADR-}-<short-slug>.md and re-run scripts/rebuild-adr-index.sh, or correct the reference. A decision cited by number that nobody can look up is indistinguishable from one that was never made. Retiring an ADR means moving it to $ADR_ARCHIVE/, never deleting it -- ids resolve forever."
-                 else
-                   drift "$f:$lno" \
+               else
+                 drift "$f:$lno" \
 "cites $ident, which has no \"## $ident\" heading in DECISIONS.md." \
 "add the ADR to DECISIONS.md, or correct the reference. A decision cited by number that nobody can look up is indistinguishable from one that was never made."
-                 fi
-                 ;;
-          SG-*)  grep -q "^### $ident\b" DECISIONS.md 2>/dev/null && continue
-                 drift "$f:$lno" \
+               fi
+               ;;
+        SG-*)  case "$_sgs" in *" $ident "*) continue ;; esac
+               drift "$f:$lno" \
 "cites $ident, which has no \"### $ident\" heading under 'Spec gaps observed' in DECISIONS.md." \
 "record the gap in DECISIONS.md -- what was ambiguous, what was assumed, what depends on it -- or correct the reference."
-                 ;;
-        esac
-      done <<EOF
-$(grep -noE '(ADR|SG)-[0-9]{4}' "$f" 2>/dev/null | sort -u -t: -k2 )
-EOF
+               ;;
+      esac
     done <<EOF
-$files
+$(printf '%s\n' "$_cites" | awk -F: '
+  {
+    # A repository with no citations at all yields one empty record here, and
+    # a bare $(NF - 1) on it is a fatal awk error rather than a quiet no-op.
+    if (NF < 3) next
+    # Parse from the right: a filename may itself contain a colon.
+    id = $NF
+    ln = $(NF - 1)
+    file = $1
+    for (i = 2; i <= NF - 2; i++) file = file ":" $i
+    if (file == "" || id == "") next
+    key = file SUBSEP id
+    if (key in seen) next
+    seen[key] = 1
+    if (!(file in fidx)) { nf = nf + 1; fidx[file] = nf }
+    printf "%d\t%s\t%s\t%s\n", fidx[file], file, ln, id
+  }
+' | sort -t"$_TAB" -k1,1n -k4,4 | cut -f2-)
 EOF
   fi
 
@@ -347,13 +422,33 @@ EOF
     END               { flush() }
   ' TASKS.md)"
 
-  while IFS="$(printf '\t')" read -r lno task hash; do
+  # Every hash resolved in ONE `git cat-file --batch-check` rather than one
+  # `git cat-file -t` per done task. At 39 done tasks that was 4.9 s, which
+  # after the batching above is the largest single cost left in this check.
+  #
+  # --batch-check emits one line per input line, in input order, but a hash it
+  # resolves is echoed back as the FULL object name -- so the input cannot be
+  # recovered from the output and the two are paired by POSITION, which is the
+  # order git documents. A line reads "<oid> <type> <size>" when found and
+  # "<input> missing" when not, so field 2 is the type or the word missing;
+  # ambiguous short hashes report "ambiguous" and are correctly not commits,
+  # matching what `cat-file -t` did by failing (ADR-0031).
+  local _hashes _types _commits
+  _hashes="$(printf '%s\n' "$rows" | cut -f3)"
+  _commits=""
+  if printf '%s' "$_hashes" | grep -q '[0-9a-f]'; then
+    _types="$(printf '%s\n' "$_hashes" | git cat-file --batch-check 2>/dev/null | awk '{ print $2 }')"
+    _commits=" $(paste -d' ' <(printf '%s\n' "$_hashes") <(printf '%s\n' "$_types") \
+                 | awk '$2 == "commit" { print $1 }' | tr '\n' ' ')"
+  fi
+
+  while IFS="$_TAB" read -r lno task hash; do
     [ -n "${task:-}" ] || continue
     if [ -z "${hash:-}" ]; then
       drift "TASKS.md:$lno" \
 "${task#\#\# } is marked done but cites no commit hash." \
 "record the hash of the commit that completed it, or set the status back to in-progress. A task is not done until it points at the commit that did it."
-    elif [ "$(git cat-file -t "$hash" 2>/dev/null)" != "commit" ]; then
+    elif case "$_commits" in *" $hash "*) false ;; *) true ;; esac; then
       drift "TASKS.md:$lno" \
 "${task#\#\# } cites commit $hash, which resolves to nothing in this repository." \
 "correct it to the real hash, or set the status back to in-progress. A hash that resolves to nothing is a claim with no evidence behind it."
@@ -392,10 +487,21 @@ check_superseded() {
   # Contiguity. A hole means an ADR was removed, or one was numbered by
   # guessing rather than by taking the next number.
   max="$(printf '%s\n' "$cur" | sed 's/ADR-//' | sort -n | tail -1)"
+  # Contiguity is a set-membership question, and the shell can answer it
+  # without forking. This loop used to run `printf` piped to `grep -q` per
+  # number -- sixty spawns for a thirty-ADR log -- and `printf -v` is used for
+  # the id so the loop body forks nothing at all (ADR-0031).
+  local _set _id
+  _set=" $(printf '%s\n' "$cur" | tr '\n' ' ')"
   missing=""
-  for n in $(seq 1 "$((10#$max))"); do
-    printf '%s\n' "$cur" | grep -q "^ADR-$(printf '%04d' "$n")$" || \
-      missing="$missing ADR-$(printf '%04d' "$n")"
+  n=1
+  while [ "$n" -le "$((10#$max))" ]; do
+    printf -v _id 'ADR-%04d' "$n"
+    case "$_set" in
+      *" $_id "*) ;;
+      *)          missing="$missing $_id" ;;
+    esac
+    n=$((n + 1))
   done
   if [ -n "$missing" ]; then
     drift "DECISIONS.md" \

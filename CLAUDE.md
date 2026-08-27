@@ -48,7 +48,9 @@ plugin installed into other projects. See ADR-0001.
   ledger documents still describe the repository (§5's row 7 lists the drift
   classes). Reports every finding rather than stopping at the first; runs
   standalone for CI. A path the structure block names must be **tracked**, not
-  merely present on disk (T-044) — untracked and un-ignored is drift.
+  merely present on disk (T-044) — untracked and un-ignored is drift. Its checks
+  are **batch-first**: one pass over many items, membership tested in-process
+  (ADR-0031). Do not reintroduce a shell-out per file, per citation or per id.
   **Five sub-checks since ADR-0028** — what the two removed ones watched for,
   and what is now unguarded, is in that ADR and §5's Known limits.
 - **The gate's own regression:** `bash scripts/gate-regression.sh`. devseed has
