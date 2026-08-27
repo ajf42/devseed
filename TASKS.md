@@ -984,3 +984,127 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   four suites pass.
 - **Status:** todo
 - **Commit:** —
+
+## T-046 — `drift.sh`: batch the per-item spawns
+
+- **Description:** Every expensive drift sub-check spawns one or more processes
+  *per item* where one process for the whole batch would do. Measured on the
+  development machine (Windows 11, Git Bash, Defender real-time already off —
+  this is MSYS2 fork emulation): a spawn costs ~100 ms, ~170 ms for `git`,
+  against ~1–2 ms on Linux. `check_orphans` 68.0 s (one `grep` plus `sort` per
+  tracked file, 224 spawns, plus an `ls` per citation, 257–500);
+  `check_superseded` 8.6 s (a `printf` piped to `grep -q` per ADR number to
+  answer set membership, 60 spawns); `check_staleness` 10.8 s
+  (`git check-ignore` per path, 64). Item counts are small; spawn counts are
+  not. No check does too much work — every expensive check does its work in too
+  many processes, which is why batching changes no verdict. Same
+  works-on-my-machine direction as T-044, one layer down: invisible to a Linux
+  author, paid by every Windows consumer on every turn. `check_budget` and the
+  three parity checks are already cheap and are out of scope. Two ordering
+  semantics must be preserved exactly, both verified against the current code
+  rather than assumed: the per-file `sort -u -t: -k2` dedupes by **id**, so a
+  repeated citation in one file is reported once at the lexically smallest
+  `line:id`, and it orders findings **by id, not by line**.
+- **Acceptance:** byte-identical stdout, stderr and exit code, CR stripped,
+  against a pre-change capture over twelve fixtures — devseed clean, the inline
+  `DECISIONS.md` layout, the per-file layout with an archive, all four
+  `check_staleness` states, an untracked glob, orphan ADR and SG citations, an
+  ADR numbering hole, and done tasks with missing and fabricated hashes; the
+  four-state staleness verdict from T-044 unchanged; both ADR layouts still
+  handled; `DECISIONS.md` and `activity.jsonl` still excluded from the citation
+  scan; binary files skipped explicitly rather than emitting "Binary file
+  matches" into the parse; no `ENDFILE` and no ERE interval expressions
+  (ADR-0025 — the CI matrix runs mawk); all four regression suites green;
+  full-gate wall-clock before and after recorded in the closure note.
+- **Status:** todo
+- **Commit:** —
+
+## T-047 — `rebuild-adr-index.sh`: one pass, not fourteen per ADR
+
+- **Description:** The generator extracts id, title and status with three
+  `sed` piped to `head` pairs, two or three `grep`s for the superseded parsing,
+  and an `ls` piped to `head` for the path — roughly 10–14 spawns per ADR file,
+  about 390 across the thirty, 38.9 s measured in isolation. `check_adr_index`
+  runs the generator's `--print` mode to verify the committed index, so the
+  generator's cost is the check's cost: 50.0 s, 35 per cent of the gate. Replace
+  the per-file extraction with a single `awk` pass over `docs/adr/*.md` and
+  `docs/adr/archive/*.md` emitting id, status, title and path, with the
+  superseded-status parsing moved into the same program. The generator remains
+  the single implementation of the derivation — this changes how it reads, not
+  what it derives.
+- **Acceptance:** `bash scripts/rebuild-adr-index.sh --print` byte-identical to
+  the pre-change capture, CR stripped; the same command diffed against
+  `DECISIONS.md` is empty CR-insensitively, so the committed index is unchanged;
+  the three status classes (active, superseded in part, superseded by ADR-NNNN)
+  still resolve as before; archived ADRs still resolve and still occupy their
+  numbers; no `ENDFILE` and no ERE intervals (ADR-0025); all four suites green;
+  before and after wall-clock in the closure note.
+- **Status:** todo
+- **Commit:** —
+
+## T-048 — hooks: one `jq` per event, and the encoding landmine
+
+- **Description:** `hook_field()` pipes the event JSON into a fresh `jq` on
+  every call. `boundary.sh` calls it four times plus the `hook_root`,
+  `hook_state_dir` and slug helpers — roughly 17 spawns before it does any
+  thinking, 1.7 s on every Edit, Write, NotebookEdit, Bash and PowerShell call
+  in every governed session. This is the change a consumer feels most, because
+  it is per-keystroke rather than per-turn. Three parts. First, a
+  `hook_fields()` that extracts every needed field in one `jq` invocation;
+  `hook_field()` stays for single-field callers. Second, the encoding hazard,
+  verified rather than supposed: a command string may contain literal tabs and
+  newlines, boundary decisions are made on that text (ADR-0013), and
+  `jq -r` with `@tsv` escapes both into backslash sequences that a naive
+  read-split does not undo — a command containing a tab and a newline comes back
+  as a different string and would be ruled on differently. A delimiter-safe
+  encoding is required. Third, `boundary.sh` line 57 is
+  `[ -n "$AGENT" ] || exit 0`: an absent `agent_type` means the main session,
+  which is allowed unconditionally (SG-0005) — and it is allowed *after* three
+  `jq` spawns it never needed. Reading `agent_type` first and exiting before
+  extracting anything else makes the dominant path cost one `jq`. SG-0005's
+  marker and reasoning are unchanged; only their cost is.
+- **Acceptance:** all 81 `boundary-regression.sh` cases pass unchanged; a new
+  case covering an event whose command contains a literal tab and a literal
+  newline asserts the boundary reads the command intact and rules on it
+  identically to the pre-change code; the main-session allow path invokes `jq`
+  once and the count is stated in the commit message; no verdict changes for any
+  input; per-call wall-clock before and after in the closure note, noting that
+  `bash` startup alone costs about 100 ms here so sub-300 ms is not reachable.
+- **Status:** todo
+- **Commit:** —
+
+## T-049 — `gate-regression.sh`: capture once, assert many
+
+- **Description:** `run_drift` re-invokes `drift.sh` for every assertion, so
+  asserting N things about one fixture costs N full runs. T-044's cases run it
+  four times against a single unchanged fixture to check four substrings of one
+  message; three of those runs are waste, and the pattern invites more of the
+  same. Run once, capture stdout, stderr and the exit code, then assert the exit
+  code and N substrings against the captured text. No fixture changes and no
+  assertion changes — the same strings are checked against the same output,
+  produced once instead of N times. The suite also inherits T-046 and T-047
+  underneath it.
+- **Acceptance:** identical pass and fail case counts across all four suites
+  before and after; the gate and drift invocation count in `gate-regression.sh`
+  stated before and after; total suite wall-clock before and after recorded; no
+  fixture and no asserted string altered.
+- **Status:** todo
+- **Commit:** —
+
+## T-050 — Parallel regression-suite runner
+
+- **Description:** The four suites run sequentially and cost 799 s together
+  (`autopilot` 384, `gate` 235, `boundary` 137, `bootstrap` 43, measured before
+  T-046). They use PID- and `mktemp`-scoped work directories
+  (`gate-regression.sh` line 16, `autopilot-regression.sh` line 28,
+  `bootstrap-regression.sh` line 31), which makes concurrent execution *look*
+  safe. That is an assertion tested nowhere, and establishing it is this task's
+  first job, not an assumption to build on. Filed separately from T-046 to T-049
+  deliberately: those are subtractive — the same work in fewer processes, proved
+  byte-identical against a capture — whereas a runner is new harness code, and
+  new harness code validated on one machine is the class that produced the
+  Linux-only interval regex (ADR-0025) and the `TMPDIR` incident (ADR-0028).
+  Batching must land and be measured before concurrency shares a diff with it.
+- **Acceptance:** written when the task is started, not now.
+- **Status:** todo
+- **Commit:** —
