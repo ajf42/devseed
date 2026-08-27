@@ -51,31 +51,11 @@ esac
 
 [ -d "$ADR_DIR" ] || { printf '%s does not exist -- nothing to index.\n' "$ADR_DIR" >&2; exit 2; }
 
-# One index row per ADR file. Reads the id and title from the H1 and the status
-# from the Status line, so the file is the single source and this is a view.
-row() {
-  local f="$1" archived="$2" id title status line num
-  id="$(sed -n 's/^# \(ADR-[0-9]\{4\}\).*/\1/p' "$f" | head -1)"
-  if [ -z "$id" ]; then
-    printf 'MALFORMED\t%s\tno "# ADR-NNNN" heading\n' "$f"
-    return
-  fi
-  title="$(sed -n "s/^# ADR-[0-9]\{4\}[[:space:]]*—[[:space:]]*//p" "$f" | head -1)"
-  line="$(sed -n 's/^- \*\*Status:\*\*[[:space:]]*//p' "$f" | head -1)"
-
-  if [ "$archived" = 1 ]; then
-    status="archived"
-  elif printf '%s' "$line" | grep -qi 'superseded in part'; then
-    status="active"
-  elif printf '%s' "$line" | grep -qiE 'superseded by \[?ADR-[0-9]{4}'; then
-    num="$(printf '%s' "$line" | grep -oiE 'superseded by \[?ADR-[0-9]{4}' | grep -oE '[0-9]{4}' | head -1)"
-    status="superseded-by-$num"
-  else
-    status="active"
-  fi
-
-  printf '%s\t%s\t%s\n' "$id" "$status" "$title"
-}
+# A literal tab, computed once. `IFS="$(printf '\t')" read` as a loop prefix
+# re-expands the substitution on EVERY iteration and forks a subshell per row;
+# that was the single largest cost T-046 found in drift.sh (ADR-0031), and this
+# file carried the same idiom in the row loop below.
+_TAB="$(printf '\t')"
 
 emit_index() {
   cat <<'HDR'
@@ -103,17 +83,111 @@ and is a skeleton by design.
 |---|---|---|
 HDR
 
-  {
-    for f in "$ADR_DIR"/*.md; do [ -e "$f" ] && row "$f" 0; done
-    for f in "$ARCHIVE_DIR"/*.md; do [ -e "$f" ] && row "$f" 1; done
-  } | sort | while IFS="$(printf '\t')" read -r id status title; do
+  # The file list, existence-checked because an unmatched glob stays literal and
+  # awk would try to open it. Positional parameters rather than an array:
+  # `"${arr[@]}"` on an EMPTY array under `set -u` is an error in bash 3.2,
+  # which is what the macOS leg of the CI matrix runs, while `"$@"` is
+  # special-cased and safe everywhere.
+  set --
+  for f in "$ADR_DIR"/*.md;     do [ -e "$f" ] && set -- "$@" "$f"; done
+  for f in "$ARCHIVE_DIR"/*.md; do [ -e "$f" ] && set -- "$@" "$f"; done
+  [ "$#" -gt 0 ] || return 0
+
+  # ONE awk pass for every field of every ADR. This replaced three `sed | head`
+  # pairs, two or three `grep`s and an `ls | head` PER FILE -- 10-14 spawns
+  # each, around 390 across the thirty-one. `check_adr_index` runs this script
+  # with --print to verify the committed index, so the generator's cost is the
+  # check's cost, and the check was the largest single item left in the gate
+  # after T-046 (ADR-0031).
+  #
+  # This changes how the derivation READS, not what it derives: the same four
+  # rules in the header comment, in the same order, against the same lines.
+  #
+  # Written mawk-safe, and asserted so by scripts/gate-regression.sh. No
+  # ENDFILE -- per-file state is keyed by FILENAME rather than reset between
+  # files -- and no ERE interval expressions: on an awk without them `{4}`
+  # never matches, so every ADR would read as malformed and the index would
+  # come back empty rather than wrong, which is ADR-0025's latent defect
+  # arriving for real.
+  awk -v arcpfx="$ARCHIVE_DIR/" '
+    {
+      fn = FILENAME
+      # `| head -1` meant the FIRST match wins and later ones are ignored. The
+      # per-file guards are that, and they are also what makes ENDFILE
+      # unnecessary.
+      if (!(fn in gotid) && match($0, /^# ADR-[0-9][0-9][0-9][0-9]/)) {
+        gotid[fn] = 1
+        id[fn] = substr($0, 3, 8)
+      }
+      if (!(fn in gottitle) && match($0, /^# ADR-[0-9][0-9][0-9][0-9][[:space:]]*—[[:space:]]*/)) {
+        gottitle[fn] = 1
+        title[fn] = substr($0, RSTART + RLENGTH)
+      }
+      if (!(fn in gotstatus) && match($0, /^- \*\*Status:\*\*[[:space:]]*/)) {
+        gotstatus[fn] = 1
+        stat[fn] = substr($0, RSTART + RLENGTH)
+      }
+    }
+    END {
+      # The link target is resolved by NUMBER taken from the id, docs/adr/
+      # before docs/adr/archive/, first match winning -- exactly what
+      # `ls <dir>/<num>-*.md | head -1` with the archive fallback did. Built
+      # from the whole argument list before any row is emitted, because the
+      # file carrying an id need not be the file named after it.
+      for (i = 1; i < ARGC; i++) {
+        f = ARGV[i]; b = f; sub(/^.*\//, "", b)
+        if (match(b, /^[0-9][0-9][0-9][0-9]-/)) {
+          n = substr(b, 1, 4)
+          if (index(f, arcpfx) == 1) { if (!(n in arcp)) arcp[n] = f }
+          else if (!(n in adrp)) adrp[n] = f
+        }
+      }
+
+      # ARGV rather than the files actually read: a file with no lines never
+      # triggers a rule, and an empty ADR is malformed, not absent.
+      for (i = 1; i < ARGC; i++) {
+        f = ARGV[i]
+        if (!(f in gotid)) {
+          printf "MALFORMED\t%s\t-\tno \"# ADR-NNNN\" heading\n", f
+          continue
+        }
+
+        line = ""
+        if (f in gotstatus) line = stat[f]
+        low = tolower(line)
+
+        # The four status rules, in the order the header comment states them.
+        if (index(f, arcpfx) == 1)                  st = "archived"
+        else if (index(low, "superseded in part"))  st = "active"
+        else if (match(low, /superseded by \[?adr-[0-9][0-9][0-9][0-9]/)) {
+          m = substr(low, RSTART, RLENGTH)
+          st = "superseded-by-" substr(m, length(m) - 3)
+        }
+        else                                        st = "active"
+
+        num = substr(id[f], 5)
+        p = ""
+        if (num in adrp) p = adrp[num]
+        else if (num in arcp) p = arcp[num]
+
+        printf "%s\t%s\t%s\t%s\n", id[f], st, p, title[f]
+      }
+    }
+  ' "$@" | sort | while IFS= read -r rec; do
+    # Split in the shell rather than with `read`'s IFS. Tab is an IFS
+    # *whitespace* character, so `IFS=<tab> read a b c d` collapses runs of
+    # tabs and one empty field silently shifts every field after it -- which is
+    # what an ADR heading with no title, or an id resolving to no file, would
+    # produce. Parameter expansion splits positionally and costs no process.
+    id="${rec%%"$_TAB"*}";         rec="${rec#*"$_TAB"}"
+    status="${rec%%"$_TAB"*}";     rec="${rec#*"$_TAB"}"
+    local_path="${rec%%"$_TAB"*}"
+    title="${rec#*"$_TAB"}"
+
     if [ "$id" = "MALFORMED" ]; then
       printf 'MALFORMED ADR file: %s (%s)\n' "$status" "$title" >&2
       exit 2
     fi
-    # Link to wherever the file actually is.
-    local_path="$(ls "$ADR_DIR"/"${id#ADR-}"-*.md 2>/dev/null | head -1)"
-    [ -n "$local_path" ] || local_path="$(ls "$ARCHIVE_DIR"/"${id#ADR-}"-*.md 2>/dev/null | head -1)"
     printf '| [%s](%s) | %s | %s |\n' "$id" "$local_path" "$status" "$title"
   done
 }

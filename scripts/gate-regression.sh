@@ -403,6 +403,80 @@ else
   bad "gate.yml exists but lacks the canonical invocation -- CI is not running the real gate"
 fi
 
+# --- T-047: the awk portability rule needs a guard ---------------------------
+# ADR-0025 records an awk-dialect defect that CI never caught: an ERE interval
+# expression that gawk matches and mawk silently never does, so the check went
+# quiet rather than red. The rule that came out of it -- portable longhand, no
+# gawk-only builtins -- was then enforced by nothing. T-046's acceptance
+# required it and was met by a hand grep on one machine; T-047 writes another
+# awk program under the same rule. A rule with no guard comparing the copies is
+# exactly the class ADR-0025 names, sitting inside the component whose job is
+# catching that class.
+#
+# The awk PROGRAM TEXT is extracted rather than the file scanned, because the
+# comments documenting this very rule contain `{7,}` and `{4}` and a whole-file
+# grep would fail on its own documentation -- a guard that cries wolf gets
+# switched off.
+echo
+echo "T-047 -- every tracked awk program is mawk-safe:"
+REPO_ROOT="${GATE%/plugins/governed-dev/gates/gate.sh}"
+
+# Pull the body of every single-quoted awk program out of a shell file. Comment
+# lines are skipped while OUTSIDE a program, so prose mentioning awk and an
+# apostrophe cannot open a phantom one; inside a program every line counts.
+awk_program_text() {
+  awk -v q="'" '
+    {
+      s = $0
+      if (inq == 0 && s ~ /^[ \t]*#/) next
+      while (1) {
+        if (inq == 0) {
+          if (match(s, "awk[^" q "]*" q) == 0) break
+          s = substr(s, RSTART + RLENGTH); inq = 1
+        } else {
+          i = index(s, q)
+          if (i == 0) { print s; break }
+          print substr(s, 1, i - 1); s = substr(s, i + 1); inq = 0
+        }
+      }
+    }
+  ' "$1"
+}
+
+_awk_files="$( cd "$REPO_ROOT" && git ls-files -z 2>/dev/null | xargs -0 grep -lI 'awk' 2>/dev/null )"
+_viol=""; _nprog=0; _nbytes=0
+for _f in $_awk_files; do
+  # Full-line comments inside the program are dropped: awk programs in this
+  # repo document the very constructs banned here, and a comment does not run.
+  _txt="$( cd "$REPO_ROOT" && awk_program_text "$_f" | grep -v '^[[:space:]]*#' )"
+  [ -n "$_txt" ] || continue
+  _nprog=$((_nprog+1)); _nbytes=$((_nbytes + ${#_txt}))
+  # ERE intervals: `{` immediately followed by a digit. An awk block brace is
+  # never followed by one, so this does not collide with the language.
+  _hit="$( printf '%s\n' "$_txt" | grep -n '{[0-9]' )"
+  [ -z "$_hit" ] || _viol="$_viol$_f: ERE interval: $_hit
+"
+  # gawk-only builtins. mawk has none of these and dies at parse time.
+  _hit="$( printf '%s\n' "$_txt" | grep -nE 'ENDFILE|asorti|gensub|strtonum' )"
+  [ -z "$_hit" ] || _viol="$_viol$_f: gawk-only construct: $_hit
+"
+done
+
+# The extractor finding nothing would make every assertion below vacuous, which
+# is the failure mode this whole section exists to prevent. Assert it bit.
+if [ "$_nprog" -ge 3 ] && [ "$_nbytes" -gt 500 ]; then
+  ok "awk extractor found $_nprog files with awk programs ($_nbytes bytes) -- not vacuous"
+else
+  bad "awk extractor found only $_nprog files / $_nbytes bytes -- it is not reading the programs, so the check below proves nothing"
+fi
+
+if [ -z "$_viol" ]; then
+  ok "no tracked awk program uses an ERE interval or a gawk-only construct"
+else
+  bad "awk portability violations (ADR-0025):
+$_viol"
+fi
+
 echo
 echo "summary: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 2
