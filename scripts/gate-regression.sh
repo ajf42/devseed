@@ -81,18 +81,34 @@ run_gate 2 "done task with no hash rejected"
 DRIFT="$(dirname "$GATE")/drift.sh"
 
 # run_drift <expected-exit> <description> [must-appear-in-output]
-run_drift() {
-  local want="$1" desc="$2" needle="${3:-}" out got
-  out="$( cd "$WORK" && bash "$DRIFT" 2>&1 )"; got=$?
-  if [ "$got" = "$want" ]; then ok "$desc (exit $got)"; else bad "$desc -- wanted exit $want, got $got"; fi
-  [ "$got" != 1 ] || bad "$desc RETURNED 1 -- exit 1 does not block and must never be returned"
+# One drift.sh run, captured. Asserting N things about one fixture used to cost
+# N full runs of the guard: run_drift re-invoked it per assertion, and T-044's
+# four cases below check four substrings of a SINGLE message against a fixture
+# that does not change between them. Three of those runs were waste, and the
+# shape invited more of the same (T-049).
+#
+# The split is capture / assert, not a new assertion vocabulary: run_drift keeps
+# its exact signature and behaviour for the one-run-one-check majority, and is
+# now expressed in terms of the two helpers rather than duplicating them.
+_D_OUT=""; _D_RC=0
+drift_run() { _D_OUT="$( cd "$WORK" && bash "$DRIFT" 2>&1 )"; _D_RC=$?; }
+
+# assert_drift <expected-exit> <description> [needle] -- against the LAST
+# drift_run, running nothing itself. Identical assertions and identical
+# messages to what run_drift emitted, so pass and fail counts do not move.
+assert_drift() {
+  local want="$1" desc="$2" needle="${3:-}"
+  if [ "$_D_RC" = "$want" ]; then ok "$desc (exit $_D_RC)"; else bad "$desc -- wanted exit $want, got $_D_RC"; fi
+  [ "$_D_RC" != 1 ] || bad "$desc RETURNED 1 -- exit 1 does not block and must never be returned"
   if [ -n "$needle" ]; then
-    case "$out" in
+    case "$_D_OUT" in
       *"$needle"*) ok "$desc -- names '$needle'" ;;
-      *)           bad "$desc -- output does not name '$needle'"; printf '%s\n' "$out" | sed 's/^/        /' ;;
+      *)           bad "$desc -- output does not name '$needle'"; printf '%s\n' "$_D_OUT" | sed 's/^/        /' ;;
     esac
   fi
 }
+
+run_drift() { drift_run; assert_drift "$@"; }
 
 # A minimal but honest ledger: a DESIGN.md with a rules section, a CLAUDE.md
 # whose structure block matches the tree, and a contiguous ADR log.
@@ -187,12 +203,17 @@ printf 'helper\n' > "$WORK/install.cmd"
 awk '1; /^docs\/ / { print "install.cmd                        a local helper" }' \
   "$WORK/CLAUDE.md" > "$WORK/CLAUDE.md.new" && mv "$WORK/CLAUDE.md.new" "$WORK/CLAUDE.md"
 ( cd "$WORK" && git add CLAUDE.md >/dev/null 2>&1 && git commit -qm "document the helper" )
-run_drift 2 "untracked, un-ignored path that exists locally is drift" "install.cmd"
+#
+# ONE run, four assertions. The fixture does not change between them -- they are
+# four substrings of one message -- so the other three runs proved nothing the
+# first had not already produced (T-049).
+drift_run
+assert_drift 2 "untracked, un-ignored path that exists locally is drift" "install.cmd"
 # Which of the three resolutions is right is the human's call, so the message
 # must offer all three rather than picking one.
-run_drift 2 "untracked path: message offers committing it" "commit it"
-run_drift 2 "untracked path: message offers ignoring it" ".gitignore"
-run_drift 2 "untracked path: message offers deleting the line" "delete the line"
+assert_drift 2 "untracked path: message offers committing it" "commit it"
+assert_drift 2 "untracked path: message offers ignoring it" ".gitignore"
+assert_drift 2 "untracked path: message offers deleting the line" "delete the line"
 
 # The same hole in the glob branch, which carried the identical -e test.
 scaffold_docs

@@ -1189,8 +1189,45 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   once and the count is stated in the commit message; no verdict changes for any
   input; per-call wall-clock before and after in the closure note, noting that
   `bash` startup alone costs about 100 ms here so sub-300 ms is not reachable.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `cfb1458`
+- **Measured with a `jq` shim on `PATH`,** so the spawn counts are counted
+  rather than reasoned about:
+
+      main-session allow    4 jq  ->  1 jq
+      subagent allow        5 jq  ->  1 jq
+      subagent deny         6 jq  ->  2 jq   (the second emits the decision)
+
+      per call, main-session allow   1.55 s  ->  0.60 s
+      per call, subagent             2.14 s  ->  1.09 s
+
+  What remains is `bash` startup, which the acceptance already predicted would
+  put sub-300 ms out of reach.
+- **The encoding was reproduced before anything was written.** `jq -r`
+  with `@tsv` escapes a literal tab to the two characters `	` and a literal
+  newline to `
+`, so a command carrying either comes back a different string
+  — and ADR-0013 is precisely the decision to rule on that text. The delimiter
+  is NUL, the one byte that cannot appear in a shell variable and so cannot
+  collide with a field's contents; process substitution rather than a pipe,
+  because the loop must run in this shell or the variables it sets die with
+  the subshell.
+- **The new case was proved to catch it,** and one detail is worth keeping:
+  planting the `@tsv` encoding turns the suite red at exit 2, but **both
+  verdict assertions still passed** — for that input the ruling happened not
+  to change. A verdict-only case would have missed the corruption entirely.
+  The byte-fidelity assertion is the one that catches it, which is the
+  argument for having written it that way.
+- **`hook_root` now prefers a `HOOK_CWD` already read in a batch,** which is
+  what takes the subagent allow path to a single `jq`. `hook_field` is
+  unchanged and stays for single-field callers.
+- **Found and deliberately not fixed, because it predates this change:**
+  `jq.exe` writes stdout in text mode on Windows, so a command carrying an
+  embedded newline comes back CRLF. The single-field `hook_field` did this too
+  — verified against the old code rather than assumed — and no verdict depends
+  on it, since the shell matchers key on redirect operators and paths. The new
+  case compares CR-stripped rather than pretending the platform does not do
+  it. It is a real defect and it is someone's task, not this one's.
 
 ## T-049 — `gate-regression.sh`: capture once, assert many
 
@@ -1207,7 +1244,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   before and after; the gate and drift invocation count in `gate-regression.sh`
   stated before and after; total suite wall-clock before and after recorded; no
   fixture and no asserted string altered.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-050 — Parallel regression-suite runner
