@@ -745,8 +745,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   under 180; the limits paragraph names SG-0005's unbounded main thread, the
   declared-tooling trigger on checks 1–3, the syntactic shell boundary, and
   ADR-0024's reviewer/auditor `Bash` acceptance.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `8814a90`
 - **T-023 was already closed** (`25bc1ca`) — it covered the original README:
   what devseed is, the install pair, the Windows prerequisite, namespacing,
   and the root-vs-templates warning. Showing the loop was never in its
@@ -944,8 +944,19 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `gate-regression.sh` gains coverage for the untracked-but-present case; all
   four regression suites pass; `DESIGN.md` §5's check-7 table row says the path
   must be committed.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `41cfbbe`
+- **The batching was not in the plan and is kept.** Testing tracking meant a
+  `git ls-files --error-unmatch` per path, one process spawn for each of the
+  block's ~100 entries. The tracked set is read once instead and membership
+  tested in-process, which left `drift.sh` faster after the change than
+  before it. `git check-ignore` stayed a spawn, and only for paths failing
+  the tracked test — the cost profile the check already had. T-046 then
+  batched that too.
+- **The gitignore exemption is unconditional on purpose,** including for
+  absent paths: `.claude/in-flight.md` and `.claude/.hook-state/` are runtime
+  state that exists only mid-session, and reporting their absence would make
+  the guard cry wolf on every clean checkout.
 
 ## T-045 — `templates/DESIGN.md` §5 and §6 ship as skeletons, which deadlocks the consumer
 
@@ -1016,8 +1027,44 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   matches" into the parse; no `ENDFILE` and no ERE interval expressions
   (ADR-0025 — the CI matrix runs mawk); all four regression suites green;
   full-gate wall-clock before and after recorded in the closure note.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `2c8468d`
+- **Measured on the development machine** (Windows 11, Git Bash, Defender
+  real-time already off — so this is MSYS2 fork emulation and inherent):
+
+      check_orphans       68.05 s  ->   1.91 s
+      check_staleness     10.83 s  ->   3.39 s
+      check_superseded     8.61 s  ->   0.83 s
+      drift.sh total    132-198 s  ->     37 s
+      four suites           799 s  ->    671 s
+
+  What remains in `drift.sh` is almost all `check_adr_index`, which runs the
+  generator T-047 rewrites; batching check 7 cannot reach it.
+- **The largest single saving was not batching.** `IFS="$(printf '\t')" read`
+  as a loop prefix re-expands the substitution on *every* iteration, forking a
+  subshell per row — 12.4 s across 258 citations, more than the scan it fed.
+  Four sites had it; one hoisted `_TAB` constant removed all four.
+- **A deviation from the plan, stated so it can be reverted on its own:** the
+  plan left the done-task hash block alone, on the grounds that one
+  `git cat-file` per done task is cheap. At 39 done tasks it measured 4.9 s,
+  which after the other batching was the largest cost left in
+  `check_orphans`, so it now uses one `git cat-file --batch-check`. Two things
+  that could have made that silently wrong were checked rather than assumed:
+  git emits one output line per input line in order, and a resolved hash is
+  echoed back as the full object name, so the pairing is positional.
+- **Two undocumented sort semantics turned out to be load-bearing,** both
+  established against the old code rather than assumed: the per-file
+  `sort -u -t: -k2` dedupes by **id**, so a file citing one id twice reports
+  it once at the lower line, and it orders findings **by id, not by line**.
+  `gate-regression.sh` gained a case for both, verified to fail when the
+  ordering is broken — without it a later simplification of the awk would
+  pass every suite.
+- **Not verified:** ADR-0025's awk constraint — no `ENDFILE`, no ERE interval
+  expressions, because the CI matrix runs mawk — was checked by reading the
+  diff and grepping for those constructs on one machine. No test asserts it
+  anywhere, here or in CI, and the matrix has never been observed from this
+  machine. The awk in this commit is therefore *believed* mawk-safe rather
+  than known to be. T-047 closes this.
 
 ## T-047 — `rebuild-adr-index.sh`: one pass, not fourteen per ADR
 
@@ -1037,8 +1084,23 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `DECISIONS.md` is empty CR-insensitively, so the committed index is unchanged;
   the three status classes (active, superseded in part, superseded by ADR-NNNN)
   still resolve as before; archived ADRs still resolve and still occupy their
-  numbers; no `ENDFILE` and no ERE intervals (ADR-0025); all four suites green;
-  before and after wall-clock in the closure note.
+  numbers; no `ENDFILE` and no ERE intervals (ADR-0025); `gate-regression.sh`
+  gains an assertion that **no tracked `awk` program** uses ERE interval
+  expressions (`{n}`, `{n,}`, `{n,m}`) or gawk-only constructs (`ENDFILE`,
+  `asorti`, `gensub`, `strtonum`), and that assertion is demonstrated failing
+  on a deliberately planted violation and passing on the tree; all four suites
+  green; before and after wall-clock in the closure note.
+- **Acceptance amended before the work started** (in the commit that closed
+  T-037, T-044 and T-046, not in this task's own commit — criteria are written
+  before the work, not alongside it): ADR-0025's awk portability rule is
+  enforced by nothing. T-046's acceptance required it and was satisfied by a
+  hand grep on one machine; this task writes another `awk` program under the
+  same rule. A rule with no guard comparing the copies is exactly the class
+  ADR-0025 names, and it sits inside the component whose job is catching that.
+  The guard is a tightening under §6's ratchet and proceeds without an ADR. It
+  must be observed failing before it is trusted: a guard never seen to fail is
+  decoration, which is the only thing separating it from the ordering case
+  T-046 added.
 - **Status:** todo
 - **Commit:** —
 
