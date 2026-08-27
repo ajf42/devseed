@@ -82,11 +82,60 @@ hook_field() {
   printf '%s' "$HOOK_JSON" | jq -r "${1} // empty" 2>/dev/null
 }
 
+# Read MANY fields in ONE jq. `hook_field` above spawns a jq per call, and
+# boundary.sh needed four before it did any thinking -- on every Edit, Write,
+# NotebookEdit, Bash and PowerShell call, in every governed session. That is the
+# cost a consumer feels most, because it is per-keystroke rather than per-turn
+# (ADR-0031).
+#
+# Usage:  hook_fields VAR1 'jq-expr-1' VAR2 'jq-expr-2' ...
+# Sets each VAR to its expression's value, empty string when absent, exactly as
+# hook_field does. Returns non-zero if jq could not produce every field, leaving
+# the caller to treat that as it treats a missing field.
+#
+# THE DELIMITER IS NUL, AND THAT IS THE WHOLE POINT. The obvious encoding --
+# `jq -r '[...] | @tsv'` and a read-split -- is WRONG here, and verified so
+# rather than supposed: @tsv escapes a literal tab to the two characters `\t`
+# and a literal newline to `\n`, so a Bash command containing either comes back
+# as a DIFFERENT STRING from the one the agent ran. boundary.sh rules on that
+# text (ADR-0013), so the encoding would decide verdicts. Newline-delimiting
+# fails on the same input for the same reason. NUL is the one byte that cannot
+# appear in a shell variable anyway, which makes it the only delimiter that
+# cannot collide with a field's contents.
+#
+# Process substitution, not a pipe: the `while` must run in THIS shell or the
+# variables it sets would die with the subshell.
+hook_fields() {
+  have_jq || return 1
+  local _prog="" _n=0 _i=0 _v
+  local _names
+  _names=()
+  while [ "$#" -gt 1 ]; do
+    _names[$_n]="$1"
+    _prog="$_prog(${2} // \"\"), \"\u0000\", "
+    _n=$((_n + 1))
+    shift 2
+  done
+  [ "$_n" -gt 0 ] || return 0
+  _prog="${_prog%, }"
+
+  while IFS= read -r -d '' _v; do
+    [ "$_i" -lt "$_n" ] || break
+    printf -v "${_names[$_i]}" '%s' "$_v"
+    _i=$((_i + 1))
+  done < <(printf '%s' "$HOOK_JSON" | jq -j "$_prog" 2>/dev/null)
+
+  [ "$_i" -eq "$_n" ]
+}
+
 # The project under change. ${CLAUDE_PROJECT_DIR} is the authority, matching
 # gates/lib.sh; the event's own cwd is the fallback. Never ${CLAUDE_PLUGIN_ROOT}
 # -- see the _CONVENTION notes in hooks.json.
 hook_root() {
   local r="${CLAUDE_PROJECT_DIR:-}"
+  # A caller that already read .cwd in a hook_fields batch sets HOOK_CWD, so
+  # this costs no second jq. Unset, the lookup below is unchanged.
+  [ -n "$r" ] || r="${HOOK_CWD:-}"
   [ -n "$r" ] || r="$(hook_field '.cwd')"
   [ -n "$r" ] || r="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   printf '%s' "$r"

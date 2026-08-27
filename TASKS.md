@@ -1101,8 +1101,65 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   must be observed failing before it is trusted: a guard never seen to fail is
   decoration, which is the only thing separating it from the ordering case
   T-046 added.
-- **Status:** todo
-- **Commit:** —
+- **Status:** done
+- **Commit:** `c59cfe3`
+- **Measured on the development machine** (Windows 11, Git Bash, MSYS2 fork
+  emulation):
+
+      rebuild-adr-index.sh --print   34.18 s  ->   0.82 s
+      drift.sh                        47.1 s  ->    9.2 s
+      full gate                       61.1 s  ->   20.1 s
+      four suites                      691 s  ->    572 s
+
+  Spawns: ~10-14 per ADR, about 390 across the thirty-one, down to **one awk
+  for all of them**.
+- **The corpus does not exercise every branch, so old and new were run side by
+  side on a synthetic tree** for the ones it misses: `superseded by ADR-NNNN`
+  bare and bracketed, an empty title, an absent Status line, archived, an
+  **empty file**, a **malformed heading**, and an **id that disagrees with its
+  filename**. Identical stdout, stderr and exit code in every case. Two of them
+  shaped the code rather than merely confirming it: rows are emitted from
+  `ARGV` rather than from files actually read, because a zero-line file never
+  triggers an awk rule and an empty ADR is malformed rather than absent; and
+  the path map is built from the whole argument list before any row is emitted,
+  because the file carrying an id need not be the file named after it.
+- **The row loop no longer splits with `read`'s IFS.** A tab is an IFS
+  *whitespace* character, so `IFS=<tab> read a b c d` collapses runs of tabs
+  and one empty field silently shifts every field after it — which is exactly
+  what an ADR heading with no title, or an id resolving to no file, produces.
+  Parameter expansion splits positionally and costs no process.
+- **The guard found two real defects on its first run, neither of them
+  planted,** both in `scripts/autopilot.sh` and both latent exactly as
+  ADR-0025 describes: `/^#{2,4} /` in `sg_summary` and
+  `` /`[0-9a-f]{7,40}`/ `` in `task_commit`. On an awk without ERE intervals
+  the first matches the literal text `{2,4}`, never fires, and the SG scan runs
+  past the entry it was meant to stop at; the second never fires, so autopilot
+  reports no commit for a task that has one. Both are now longhand.
+- **Fixing `autopilot.sh` is scope beyond this task's file,** stated so it can
+  be judged on its own: the alternative was shipping a red suite, and finding
+  this is what the guard is for. Equivalence was checked directly rather than
+  inferred from the suite passing — the heading match is identical across one
+  to six leading `#`; the hash match is identical at 6, 7, 8 and 40 hex
+  characters and **differs at 41 or more**, where `{7,40}` failed and the
+  longhand seven-plus matches. That longhand is the spelling check 5 and
+  `drift.sh` already share, and `git cat-file -t` rejects a non-commit on the
+  next line, so no outcome changes.
+- **The guard extracts awk program text rather than scanning files,** because
+  the comments documenting this very rule contain `{7,}` and `{4}` — a
+  whole-file grep fails on its own documentation, which is how the first
+  version behaved. It was observed failing before being trusted, three ways: a
+  planted `{4}` and a planted `strtonum` each turn the suite red at exit 2, and
+  deliberately breaking the extractor makes the vacuity assertion fail while
+  the violation check passes on nothing, which is the silent-guard failure the
+  section exists to prevent.
+- **An MSYS2 text-mode detail, found while establishing byte-identity:** every
+  ADR file is CRLF in the working tree, and `grep` sees the CR while `sed` and
+  `awk` both strip it. Had awk behaved like grep, every title and status would
+  have gained a trailing CR and the index would have changed. That awk matches
+  sed here was verified, not assumed.
+- **Not verified:** no mawk on this machine and no CI matrix run observed from
+  it. The guard asserts the banned constructs are absent; that mawk then
+  *parses* these programs is still untested outside the matrix.
 
 ## T-048 — hooks: one `jq` per event, and the encoding landmine
 
@@ -1132,7 +1189,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   once and the count is stated in the commit message; no verdict changes for any
   input; per-call wall-clock before and after in the closure note, noting that
   `bash` startup alone costs about 100 ms here so sub-300 ms is not reachable.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-049 — `gate-regression.sh`: capture once, assert many
