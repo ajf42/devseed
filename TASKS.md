@@ -705,11 +705,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   that is a claim — but for ADR-0001's own stated reason, not that one. Also
   corrected two stale `README.md` claims found in passing: seven gate checks,
   not six, and the agents/skills/hooks are built, not in progress.
-- **Open follow-up:** `claude plugin validate --strict` was **not run** — the
-  `claude` CLI is not installed on this machine. Whether declaring a version
-  makes `--strict` pass is therefore unverified, and is recorded as unverified
-  rather than claimed. Run it on a machine that has the CLI and record the
-  actual output here.
+- **Open follow-up, CLOSED 2026-08-27 (T-049's commit):** the `claude` CLI is
+  installed on this machine after all — 2.1.247, found while running T-049's
+  ship checks, having been recorded as absent since this entry was written.
+  `claude plugin validate .` and `claude plugin validate . --strict` both
+  report `✔ Validation passed` at exit 0, as does the plugin manifest at
+  `plugins/governed-dev`. Declaring a version does not break `--strict`. The
+  answer was available the whole time; nothing re-checked the premise.
 
 ## T-036 — Tag v0.1.0
 
@@ -745,8 +747,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   under 180; the limits paragraph names SG-0005's unbounded main thread, the
   declared-tooling trigger on checks 1–3, the syntactic shell boundary, and
   ADR-0024's reviewer/auditor `Bash` acceptance.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `8814a90`
 - **T-023 was already closed** (`25bc1ca`) — it covered the original README:
   what devseed is, the install pair, the Windows prerequisite, namespacing,
   and the root-vs-templates warning. Showing the loop was never in its
@@ -879,8 +881,10 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   exists — driving the installed copy would run a plugin pinned at install
   time, which is what ADR-0016 exists to avoid. Overridable by
   `AUTOPILOT_TASK_SKILL`.
-- **Not verified:** no `claude` CLI on this machine, so the suite stubs the
-  worker and runs the real gate. The router is tested; that
+- **Not verified:** the suite stubs the worker and runs the real gate. (The
+  stated reason — no `claude` CLI here — was wrong: 2.1.247 is installed, found
+  in T-049's ship checks. Autopilot still has not been pointed at it.) The
+  router is tested; that
   `claude -p "/task T-NNN" --output-format json` behaves as assumed is not.
   Give the first real run explicit ids and `--max-tasks 1`.
 
@@ -944,8 +948,19 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `gate-regression.sh` gains coverage for the untracked-but-present case; all
   four regression suites pass; `DESIGN.md` §5's check-7 table row says the path
   must be committed.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `41cfbbe`
+- **The batching was not in the plan and is kept.** Testing tracking meant a
+  `git ls-files --error-unmatch` per path, one process spawn for each of the
+  block's ~100 entries. The tracked set is read once instead and membership
+  tested in-process, which left `drift.sh` faster after the change than
+  before it. `git check-ignore` stayed a spawn, and only for paths failing
+  the tracked test — the cost profile the check already had. T-046 then
+  batched that too.
+- **The gitignore exemption is unconditional on purpose,** including for
+  absent paths: `.claude/in-flight.md` and `.claude/.hook-state/` are runtime
+  state that exists only mid-session, and reporting their absence would make
+  the guard cry wolf on every clean checkout.
 
 ## T-045 — `templates/DESIGN.md` §5 and §6 ship as skeletons, which deadlocks the consumer
 
@@ -1016,8 +1031,44 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   matches" into the parse; no `ENDFILE` and no ERE interval expressions
   (ADR-0025 — the CI matrix runs mawk); all four regression suites green;
   full-gate wall-clock before and after recorded in the closure note.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `2c8468d`
+- **Measured on the development machine** (Windows 11, Git Bash, Defender
+  real-time already off — so this is MSYS2 fork emulation and inherent):
+
+      check_orphans       68.05 s  ->   1.91 s
+      check_staleness     10.83 s  ->   3.39 s
+      check_superseded     8.61 s  ->   0.83 s
+      drift.sh total    132-198 s  ->     37 s
+      four suites           799 s  ->    671 s
+
+  What remains in `drift.sh` is almost all `check_adr_index`, which runs the
+  generator T-047 rewrites; batching check 7 cannot reach it.
+- **The largest single saving was not batching.** `IFS="$(printf '\t')" read`
+  as a loop prefix re-expands the substitution on *every* iteration, forking a
+  subshell per row — 12.4 s across 258 citations, more than the scan it fed.
+  Four sites had it; one hoisted `_TAB` constant removed all four.
+- **A deviation from the plan, stated so it can be reverted on its own:** the
+  plan left the done-task hash block alone, on the grounds that one
+  `git cat-file` per done task is cheap. At 39 done tasks it measured 4.9 s,
+  which after the other batching was the largest cost left in
+  `check_orphans`, so it now uses one `git cat-file --batch-check`. Two things
+  that could have made that silently wrong were checked rather than assumed:
+  git emits one output line per input line in order, and a resolved hash is
+  echoed back as the full object name, so the pairing is positional.
+- **Two undocumented sort semantics turned out to be load-bearing,** both
+  established against the old code rather than assumed: the per-file
+  `sort -u -t: -k2` dedupes by **id**, so a file citing one id twice reports
+  it once at the lower line, and it orders findings **by id, not by line**.
+  `gate-regression.sh` gained a case for both, verified to fail when the
+  ordering is broken — without it a later simplification of the awk would
+  pass every suite.
+- **Not verified:** ADR-0025's awk constraint — no `ENDFILE`, no ERE interval
+  expressions, because the CI matrix runs mawk — was checked by reading the
+  diff and grepping for those constructs on one machine. No test asserts it
+  anywhere, here or in CI, and the matrix has never been observed from this
+  machine. The awk in this commit is therefore *believed* mawk-safe rather
+  than known to be. T-047 closes this.
 
 ## T-047 — `rebuild-adr-index.sh`: one pass, not fourteen per ADR
 
@@ -1037,10 +1088,82 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `DECISIONS.md` is empty CR-insensitively, so the committed index is unchanged;
   the three status classes (active, superseded in part, superseded by ADR-NNNN)
   still resolve as before; archived ADRs still resolve and still occupy their
-  numbers; no `ENDFILE` and no ERE intervals (ADR-0025); all four suites green;
-  before and after wall-clock in the closure note.
-- **Status:** todo
-- **Commit:** —
+  numbers; no `ENDFILE` and no ERE intervals (ADR-0025); `gate-regression.sh`
+  gains an assertion that **no tracked `awk` program** uses ERE interval
+  expressions (`{n}`, `{n,}`, `{n,m}`) or gawk-only constructs (`ENDFILE`,
+  `asorti`, `gensub`, `strtonum`), and that assertion is demonstrated failing
+  on a deliberately planted violation and passing on the tree; all four suites
+  green; before and after wall-clock in the closure note.
+- **Acceptance amended before the work started** (in the commit that closed
+  T-037, T-044 and T-046, not in this task's own commit — criteria are written
+  before the work, not alongside it): ADR-0025's awk portability rule is
+  enforced by nothing. T-046's acceptance required it and was satisfied by a
+  hand grep on one machine; this task writes another `awk` program under the
+  same rule. A rule with no guard comparing the copies is exactly the class
+  ADR-0025 names, and it sits inside the component whose job is catching that.
+  The guard is a tightening under §6's ratchet and proceeds without an ADR. It
+  must be observed failing before it is trusted: a guard never seen to fail is
+  decoration, which is the only thing separating it from the ordering case
+  T-046 added.
+- **Status:** done
+- **Commit:** `c59cfe3`
+- **Measured on the development machine** (Windows 11, Git Bash, MSYS2 fork
+  emulation):
+
+      rebuild-adr-index.sh --print   34.18 s  ->   0.82 s
+      drift.sh                        47.1 s  ->    9.2 s
+      full gate                       61.1 s  ->   20.1 s
+      four suites                      691 s  ->    572 s
+
+  Spawns: ~10-14 per ADR, about 390 across the thirty-one, down to **one awk
+  for all of them**.
+- **The corpus does not exercise every branch, so old and new were run side by
+  side on a synthetic tree** for the ones it misses: `superseded by ADR-NNNN`
+  bare and bracketed, an empty title, an absent Status line, archived, an
+  **empty file**, a **malformed heading**, and an **id that disagrees with its
+  filename**. Identical stdout, stderr and exit code in every case. Two of them
+  shaped the code rather than merely confirming it: rows are emitted from
+  `ARGV` rather than from files actually read, because a zero-line file never
+  triggers an awk rule and an empty ADR is malformed rather than absent; and
+  the path map is built from the whole argument list before any row is emitted,
+  because the file carrying an id need not be the file named after it.
+- **The row loop no longer splits with `read`'s IFS.** A tab is an IFS
+  *whitespace* character, so `IFS=<tab> read a b c d` collapses runs of tabs
+  and one empty field silently shifts every field after it — which is exactly
+  what an ADR heading with no title, or an id resolving to no file, produces.
+  Parameter expansion splits positionally and costs no process.
+- **The guard found two real defects on its first run, neither of them
+  planted,** both in `scripts/autopilot.sh` and both latent exactly as
+  ADR-0025 describes: `/^#{2,4} /` in `sg_summary` and
+  `` /`[0-9a-f]{7,40}`/ `` in `task_commit`. On an awk without ERE intervals
+  the first matches the literal text `{2,4}`, never fires, and the SG scan runs
+  past the entry it was meant to stop at; the second never fires, so autopilot
+  reports no commit for a task that has one. Both are now longhand.
+- **Fixing `autopilot.sh` is scope beyond this task's file,** stated so it can
+  be judged on its own: the alternative was shipping a red suite, and finding
+  this is what the guard is for. Equivalence was checked directly rather than
+  inferred from the suite passing — the heading match is identical across one
+  to six leading `#`; the hash match is identical at 6, 7, 8 and 40 hex
+  characters and **differs at 41 or more**, where `{7,40}` failed and the
+  longhand seven-plus matches. That longhand is the spelling check 5 and
+  `drift.sh` already share, and `git cat-file -t` rejects a non-commit on the
+  next line, so no outcome changes.
+- **The guard extracts awk program text rather than scanning files,** because
+  the comments documenting this very rule contain `{7,}` and `{4}` — a
+  whole-file grep fails on its own documentation, which is how the first
+  version behaved. It was observed failing before being trusted, three ways: a
+  planted `{4}` and a planted `strtonum` each turn the suite red at exit 2, and
+  deliberately breaking the extractor makes the vacuity assertion fail while
+  the violation check passes on nothing, which is the silent-guard failure the
+  section exists to prevent.
+- **An MSYS2 text-mode detail, found while establishing byte-identity:** every
+  ADR file is CRLF in the working tree, and `grep` sees the CR while `sed` and
+  `awk` both strip it. Had awk behaved like grep, every title and status would
+  have gained a trailing CR and the index would have changed. That awk matches
+  sed here was verified, not assumed.
+- **Not verified:** no mawk on this machine and no CI matrix run observed from
+  it. The guard asserts the banned constructs are absent; that mawk then
+  *parses* these programs is still untested outside the matrix.
 
 ## T-048 — hooks: one `jq` per event, and the encoding landmine
 
@@ -1070,8 +1193,45 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   once and the count is stated in the commit message; no verdict changes for any
   input; per-call wall-clock before and after in the closure note, noting that
   `bash` startup alone costs about 100 ms here so sub-300 ms is not reachable.
-- **Status:** todo
-- **Commit:** —
+- **Status:** done
+- **Commit:** `cfb1458`
+- **Measured with a `jq` shim on `PATH`,** so the spawn counts are counted
+  rather than reasoned about:
+
+      main-session allow    4 jq  ->  1 jq
+      subagent allow        5 jq  ->  1 jq
+      subagent deny         6 jq  ->  2 jq   (the second emits the decision)
+
+      per call, main-session allow   1.55 s  ->  0.60 s
+      per call, subagent             2.14 s  ->  1.09 s
+
+  What remains is `bash` startup, which the acceptance already predicted would
+  put sub-300 ms out of reach.
+- **The encoding was reproduced before anything was written.** `jq -r`
+  with `@tsv` escapes a literal tab to the two characters `	` and a literal
+  newline to `
+`, so a command carrying either comes back a different string
+  — and ADR-0013 is precisely the decision to rule on that text. The delimiter
+  is NUL, the one byte that cannot appear in a shell variable and so cannot
+  collide with a field's contents; process substitution rather than a pipe,
+  because the loop must run in this shell or the variables it sets die with
+  the subshell.
+- **The new case was proved to catch it,** and one detail is worth keeping:
+  planting the `@tsv` encoding turns the suite red at exit 2, but **both
+  verdict assertions still passed** — for that input the ruling happened not
+  to change. A verdict-only case would have missed the corruption entirely.
+  The byte-fidelity assertion is the one that catches it, which is the
+  argument for having written it that way.
+- **`hook_root` now prefers a `HOOK_CWD` already read in a batch,** which is
+  what takes the subagent allow path to a single `jq`. `hook_field` is
+  unchanged and stays for single-field callers.
+- **Found and deliberately not fixed, because it predates this change:**
+  `jq.exe` writes stdout in text mode on Windows, so a command carrying an
+  embedded newline comes back CRLF. The single-field `hook_field` did this too
+  — verified against the old code rather than assumed — and no verdict depends
+  on it, since the shell matchers key on redirect operators and paths. The new
+  case compares CR-stripped rather than pretending the platform does not do
+  it. It is a real defect and it is someone's task, not this one's.
 
 ## T-049 — `gate-regression.sh`: capture once, assert many
 
@@ -1088,8 +1248,33 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   before and after; the gate and drift invocation count in `gate-regression.sh`
   stated before and after; total suite wall-clock before and after recorded; no
   fixture and no asserted string altered.
-- **Status:** todo
-- **Commit:** —
+- **Status:** done
+- **Commit:** `a5b9b9b`
+- **Measured:**
+
+      gate/drift invocations    28  ->  25   (run_gate 9 unchanged, drift 19 -> 16)
+      gate-regression          170 s -> 159 s
+      four suites              505 s -> 495 s
+
+- **The bar was that nothing moved, and nothing did:** the suite's entire
+  stdout is byte-identical to the pre-change run — same assertions, same
+  messages, same order, same results, produced with three fewer invocations.
+  61 passed, 0 failed, before and after.
+- **Only one site qualified, and the rest were checked rather than assumed.**
+  Every other `run_drift` call follows a fixture mutation and needs its own
+  run. The `run_gate` triple in item 1 is deliberately not collapsed — running
+  the gate three times on one tree is exactly what that item asserts — and
+  T-032's `run_gate`/`run_drift` pairs are two different programs ruling on one
+  fixture, which is that case's whole point.
+- **A capture-once refactor can assert against a stale or empty buffer and
+  pass everything,** so that was tested: planting a change to `drift.sh`'s
+  message flips exactly one of the four assertions while the other three still
+  match the same capture, with the diagnostic printing the live output.
+- **Reading that planted failure caught a regression the green suite could
+  not:** the edit had dropped the `\n` from the diagnostic's `printf`, so the
+  next PASS line ran onto the end of it. Invisible while everything passes,
+  and only visible when a case fails — which is when the output has to be
+  readable.
 
 ## T-050 — Parallel regression-suite runner
 

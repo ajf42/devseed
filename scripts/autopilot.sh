@@ -300,10 +300,17 @@ sg_ids() {
 }
 
 # One SG entry, reduced to what a human needs to rule on it.
+#
+# The heading match is longhand `###?#?` rather than `#{2,4}`, and the hash
+# match below is longhand seven-plus rather than `{7,40}`, for ADR-0025's
+# reason: an awk without ERE intervals treats `{2,4}` as literal text, so the
+# pattern never fires and the scan silently runs past the entry it was meant to
+# stop at. Both were latent here until T-047's guard in gate-regression.sh
+# looked. The hash spelling now matches check 5 and drift.sh's copies exactly.
 sg_summary() {
   awk -v id="$1" '
     $0 ~ "^#+ *" id { on = 1; print; next }
-    on && /^#{2,4} /                { exit }
+    on && /^###?#? /               { exit }
     on && /^\*\*Assumed:\*\*/       { print; found = 1; next }
     on && found && /^$/             { exit }
     on && found                     { print }
@@ -335,7 +342,7 @@ task_commit() {
         h="$(awk -v want="$t" '
           /^## T-[0-9]+/ { have = ($2 == want); next }
           have && /^- \*\*Commit:\*\*/ {
-            if (match($0, /`[0-9a-f]{7,40}`/)) {
+            if (match($0, /`[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*`/)) {
               print substr($0, RSTART + 1, RLENGTH - 2); exit
             }
           }' TASKS.md)"

@@ -28,14 +28,37 @@ if ! have_jq; then
   hook_die "cannot evaluate agent boundaries without jq."
 fi
 
-AGENT="$(hook_agent_type)"
+# ONE jq for the whole event. These were four separate `hook_field` calls, so
+# four jq spawns -- about 1.5 s on this machine -- before the hook did any
+# thinking, on every Edit, Write, NotebookEdit, Bash and PowerShell call. See
+# hook_fields in lib.sh for why the delimiter is NUL and not a tab: @tsv would
+# rewrite a literal tab or newline inside CMD, and CMD is what the shell
+# matchers below rule on (ADR-0013).
+#
 # NotebookEdit carries notebook_path, not file_path. A boundary that reads only
 # file_path is a boundary with a documented way around it.
-FILE="$(hook_field '.tool_input.file_path // .tool_input.notebook_path')"
-TOOL="$(hook_field '.tool_name')"
-# Bash and PowerShell carry a command string instead of a path. Without this the
+#
+# Bash and PowerShell carry a command string instead of a path. Without CMD the
 # boundary inspects an empty FILE, matches nothing, and allows -- see ADR-0013.
-CMD="$(hook_field '.tool_input.command')"
+AGENT=""; FILE=""; TOOL=""; CMD=""; HOOK_CWD=""
+hook_fields \
+  AGENT '.agent_type' \
+  FILE  '.tool_input.file_path // .tool_input.notebook_path' \
+  TOOL  '.tool_name' \
+  CMD   '.tool_input.command' \
+  HOOK_CWD '.cwd'
+# `plugin:agent` arrives from the harness for a plugin-supplied agent; the
+# roster is keyed on the bare name. This is hook_agent_type's normalisation,
+# kept here because the field is now read in the batch above.
+AGENT="${AGENT##*:}"
+
+# TODO(spec): SG-0005 — DESIGN.md and T-007 define boundaries per agent but say
+# nothing about the main session thread, which carries no agent_type at all.
+# Assumed: absent agent_type means the top-level session, which has no declared
+# boundary and is allowed. Denying instead would make the project unwritable
+# outside a subagent. This is the assumption that decides whether the whole
+# roster is enforcement or theatre, so it is recorded rather than buried.
+[ -n "$AGENT" ] || exit 0
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",
@@ -48,14 +71,6 @@ deny() {
 # literal token and, finding "SG-NNNN", correctly reports an untraceable marker.
 # Same idiom, and the same reason, as gates/check-06-spec-gaps.sh.
 _MARK="TODO"; _MARK="${_MARK}(spec): SG-NNNN"
-
-# TODO(spec): SG-0005 — DESIGN.md and T-007 define boundaries per agent but say
-# nothing about the main session thread, which carries no agent_type at all.
-# Assumed: absent agent_type means the top-level session, which has no declared
-# boundary and is allowed. Denying instead would make the project unwritable
-# outside a subagent. This is the assumption that decides whether the whole
-# roster is enforcement or theatre, so it is recorded rather than buried.
-[ -n "$AGENT" ] || exit 0
 
 # Normalise to a repo-relative path.
 #

@@ -105,20 +105,20 @@ plugin installed into other projects. See ADR-0001.
   strikes per task. It never touches DESIGN.md, never pushes, never merges, and
   commits only `reports/`. Its own regression, with a stubbed worker and the
   real gate: `bash scripts/autopilot-regression.sh`. **Never run against a real
-  worker yet** — no `claude` CLI here; the first real run wants explicit ids
-  and `--max-tasks 1`.
+  worker yet** — the CLI is present (2.1.247) but autopilot has not been
+  pointed at it; the first real run wants explicit ids and `--max-tasks 1`.
 - Four rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority), `ambiguity.md` (never invent past a spec gap),
   `ledger.md` (which document owns which fact), `delegation.md` (the agent
   loop). Govern devseed itself; ship in consumer-facing form, ids and paths
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
-- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.0"`
+- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.1"`
   (ADR-0026); the marketplace entry stays versionless so the fact has one copy.
-  `claude plugin validate` **has not been re-run since** — no `claude` CLI on
-  this machine — so whether `--strict` now passes is unverified, not assumed
-  (T-035). Published to `github.com/ajf42/devseed`; install loop verified end
-  to end from outside this repo.
+  `claude plugin validate .`, the same `--strict`, and the plugin manifest all
+  pass on CLI 2.1.247 — T-035's open follow-up, run rather than assumed.
+  Published to `github.com/ajf42/devseed`; install loop verified end to end
+  from outside this repo.
 - Ledger documents: this file, [`TASKS.md`](TASKS.md),
   `.claude/activity.jsonl`, and the ADRs — **one file each under
   [`docs/adr/`](docs/adr/)** since ADR-0029, with

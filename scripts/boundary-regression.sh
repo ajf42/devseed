@@ -209,6 +209,55 @@ echo "shell boundaries -- namespaced agent names survive install:"
 assert deny  "governed-dev:implementer is matched as implementer" \
   "governed-dev:implementer" Bash command 'echo x >> DECISIONS.md' "scribe"
 
+# --- T-048: the encoding landmine --------------------------------------------
+# The obvious way to read many fields in one jq -- `[...] | @tsv` and a
+# read-split -- corrupts exactly the input this boundary rules on. @tsv escapes
+# a literal tab to the two characters \t and a literal newline to \n, so a
+# command carrying either comes back as a DIFFERENT STRING and the shell
+# matchers below decide on text the agent never ran (ADR-0013). This was
+# reproduced, not supposed, before hook_fields was written; the delimiter is NUL
+# because NUL is the one byte that cannot occur in a shell variable.
+#
+# NOTE ON CR: jq.exe writes stdout in text mode on Windows, so an embedded
+# newline arrives as CRLF. That predates this change -- the single-field
+# hook_field did it too -- and it is why the comparison below strips CR rather
+# than pretending the platform does not. The tab is compared exactly, because
+# the tab is what @tsv would have destroyed.
+echo
+echo "encoding -- a command carrying a literal tab and a literal newline (T-048):"
+
+_TABC="$(printf '\t')"
+_CMD_DENY="$(printf 'echo a\tb\ncat x >> DECISIONS.md')"
+_CMD_ALLOW="$(printf 'echo a\tb\nls -l')"
+
+assert deny  "multi-line command with a tab still denied when it writes a ledger" \
+  implementer Bash command "$_CMD_DENY" "scribe"
+assert allow "multi-line command with a tab still allowed when it writes nothing" \
+  implementer Bash command "$_CMD_ALLOW"
+
+# What the hook actually read, taken from the same helper the hook uses.
+_LIB="$ROOT/plugins/governed-dev/hooks/lib.sh"
+_GOT="$( event implementer Bash command "$_CMD_DENY" \
+         | ( . "$_LIB" >/dev/null 2>&1; hook_fields _X '.tool_input.command'; printf '%s' "${_X:-}" ) )"
+
+if [ "$(printf '%s' "$_GOT" | tr -d '\r')" = "$(printf '%s' "$_CMD_DENY" | tr -d '\r')" ]; then
+  ok "hook_fields returns the command byte-for-byte (CR aside)"
+else
+  bad "hook_fields altered the command"
+  printf '        want: %s\n' "$(printf '%s' "$_CMD_DENY" | od -c | head -3)"
+  printf '        got:  %s\n' "$(printf '%s' "$_GOT" | od -c | head -3)"
+fi
+
+case "$_GOT" in
+  *"$_TABC"*) ok "the literal tab survived as a tab" ;;
+  *)          bad "the literal tab did not survive -- the encoding ate it" ;;
+esac
+
+case "$_GOT" in
+  *'\t'*) bad "command contains the two-character sequence \t -- @tsv-style escaping corrupted it" ;;
+  *)       ok "no \t escape sequence was introduced" ;;
+esac
+
 echo
 echo "summary: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 2
