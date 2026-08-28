@@ -705,11 +705,13 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   that is a claim — but for ADR-0001's own stated reason, not that one. Also
   corrected two stale `README.md` claims found in passing: seven gate checks,
   not six, and the agents/skills/hooks are built, not in progress.
-- **Open follow-up:** `claude plugin validate --strict` was **not run** — the
-  `claude` CLI is not installed on this machine. Whether declaring a version
-  makes `--strict` pass is therefore unverified, and is recorded as unverified
-  rather than claimed. Run it on a machine that has the CLI and record the
-  actual output here.
+- **Open follow-up, CLOSED 2026-08-27 (T-049's commit):** the `claude` CLI is
+  installed on this machine after all — 2.1.247, found while running T-049's
+  ship checks, having been recorded as absent since this entry was written.
+  `claude plugin validate .` and `claude plugin validate . --strict` both
+  report `✔ Validation passed` at exit 0, as does the plugin manifest at
+  `plugins/governed-dev`. Declaring a version does not break `--strict`. The
+  answer was available the whole time; nothing re-checked the premise.
 
 ## T-036 — Tag v0.1.0
 
@@ -879,8 +881,10 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   exists — driving the installed copy would run a plugin pinned at install
   time, which is what ADR-0016 exists to avoid. Overridable by
   `AUTOPILOT_TASK_SKILL`.
-- **Not verified:** no `claude` CLI on this machine, so the suite stubs the
-  worker and runs the real gate. The router is tested; that
+- **Not verified:** the suite stubs the worker and runs the real gate. (The
+  stated reason — no `claude` CLI here — was wrong: 2.1.247 is installed, found
+  in T-049's ship checks. Autopilot still has not been pointed at it.) The
+  router is tested; that
   `claude -p "/task T-NNN" --output-format json` behaves as assumed is not.
   Give the first real run explicit ids and `--max-tasks 1`.
 
@@ -1244,8 +1248,33 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   before and after; the gate and drift invocation count in `gate-regression.sh`
   stated before and after; total suite wall-clock before and after recorded; no
   fixture and no asserted string altered.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `a5b9b9b`
+- **Measured:**
+
+      gate/drift invocations    28  ->  25   (run_gate 9 unchanged, drift 19 -> 16)
+      gate-regression          170 s -> 159 s
+      four suites              505 s -> 495 s
+
+- **The bar was that nothing moved, and nothing did:** the suite's entire
+  stdout is byte-identical to the pre-change run — same assertions, same
+  messages, same order, same results, produced with three fewer invocations.
+  61 passed, 0 failed, before and after.
+- **Only one site qualified, and the rest were checked rather than assumed.**
+  Every other `run_drift` call follows a fixture mutation and needs its own
+  run. The `run_gate` triple in item 1 is deliberately not collapsed — running
+  the gate three times on one tree is exactly what that item asserts — and
+  T-032's `run_gate`/`run_drift` pairs are two different programs ruling on one
+  fixture, which is that case's whole point.
+- **A capture-once refactor can assert against a stale or empty buffer and
+  pass everything,** so that was tested: planting a change to `drift.sh`'s
+  message flips exactly one of the four assertions while the other three still
+  match the same capture, with the diagnostic printing the live output.
+- **Reading that planted failure caught a regression the green suite could
+  not:** the edit had dropped the `\n` from the diagnostic's `printf`, so the
+  next PASS line ran onto the end of it. Invisible while everything passes,
+  and only visible when a case fails — which is when the output has to be
+  readable.
 
 ## T-050 — Parallel regression-suite runner
 
