@@ -55,6 +55,7 @@ and is a skeleton by design.
 | [ADR-0033](docs/adr/0033-main-thread-is-trusted.md) | active | The main session thread is trusted; the roster binds delegated work |
 | [ADR-0034](docs/adr/0034-autopilot-skill-leaves-the-plugin.md) | active | The `/autopilot` skill leaves the plugin; the driver stays devseed-only |
 | [ADR-0035](docs/adr/0035-consumer-ci-runs-the-gate-from-a-tagged-clone.md) | active | Consumer CI runs the plugin's gate from a tagged clone; vendoring rejected |
+| [ADR-0036](docs/adr/0036-seed-the-mechanism-sections.md) | active | `templates/DESIGN.md` seeds §5 and §6 rather than prompting for them |
 
 ## Spec gaps observed
 

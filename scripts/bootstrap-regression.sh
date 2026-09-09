@@ -239,6 +239,64 @@ check $? "the commit bullet names in-progress as the in-between state"
 
 git -C "$TARGET" checkout -- . >/dev/null 2>&1
 
+printf '\n== 8. DESIGN.md ships sections 5 and 6 seeded, not skeletal ==\n'
+# A template that ships an empty section 6 DEADLOCKS the consumer: the file's
+# own header says changes go through section 6, /amend refuses to run without
+# one, and writing one is itself a change to the file. Observed live on the
+# first real bootstrap. Section 5 gets the same treatment for the same reason --
+# it describes the contract the shipped gate.sh already enforces, so an empty
+# one documents nothing while the gate goes on enforcing it.
+#
+# Asserted against the SEEDED project ($TARGET from section 4), not against
+# templates/, so what is checked is what a consumer actually receives.
+D="$TARGET/DESIGN.md"
+
+# Prints one numbered section's body, headings excluded.
+sec() {
+  awk -v want="$1" '
+    /^## / { inside = (index($0, want) == 1); next }
+    inside { print }
+  ' "$D"
+}
+
+# The deadlock itself: neither section may be nothing but an HTML comment.
+for n in "## 5." "## 6."; do
+  body="$(sec "$n" | sed '/<!--/,/-->/d')"
+  [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ]
+  check $? "seeded DESIGN.md $n is not comment-only"
+done
+
+# Section 6 must carry the four things /amend reads back to the human, or the
+# skill ships a procedure it cannot execute.
+S6="$(sec '## 6.')"
+for want in 'quoted as currently written' 'specific incident' 'makes harder' \
+            'approves' 'Tightening' 'Gate-Bypassed' 'drifted code'; do
+  case "$S6" in *"$want"*) true ;; *) false ;; esac
+  check $? "seeded section 6 carries: $want"
+done
+
+# Section 5 must carry the gate's contract: it describes a script the consumer
+# cannot read from their own repository.
+S5="$(sec '## 5.')"
+for want in 'Exit 0' 'Never exit 1' 'cannot run is a failed check' \
+            'Verification only' 'CI parity' "This project's build rules"; do
+  case "$S5" in *"$want"*) true ;; *) false ;; esac
+  check $? "seeded section 5 carries: $want"
+done
+
+# All seven rows, so a table quietly losing one is caught.
+ROWS="$(printf '%s\n' "$S5" | grep -cE '^\| [1-7] \|')"
+case "$ROWS" in ''|*[!0-9]*) ROWS=0 ;; esac
+[ "$ROWS" -eq 7 ]
+check $? "seeded section 5 lists all seven checks (found $ROWS)"
+
+# The skill must say the two sections are not interview material, or an agent
+# following it will helpfully blank them.
+grep -qF 'arrive filled in' "$SKILL"
+check $? "bootstrap/SKILL.md says sections 5 and 6 arrive seeded"
+grep -qi 'spec gaps observed' "$SKILL"
+check $? "bootstrap/SKILL.md records a spec gap for each skeletal section"
+
 printf '\n---------------------------------------------\n'
 printf 'bootstrap-regression: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 2

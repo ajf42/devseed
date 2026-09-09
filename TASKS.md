@@ -998,7 +998,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   still passes; a new ADR at the next free number records the decision with the
   rejected alternative (interviewing for §6) and what seeding makes harder; all
   four suites pass.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-046 — `drift.sh`: batch the per-item spawns
