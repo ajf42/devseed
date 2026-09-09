@@ -87,9 +87,11 @@ filesystem disagree about — quoted and unreconciled. It changes nothing.
 
 ## What this does not do
 
-The main session thread is **unbounded** (SG-0005). The roster's write
-boundaries bind real subagents, because the hook event carries `agent_type` only
-inside one — and most work happens on the main thread. Checks 1–3 trigger on
+The main session thread is **unbounded**, by decision (ADR-0033, closing
+SG-0005): it is the human's proxy. The roster's write boundaries bind real
+subagents, because the hook event carries `agent_type` only inside one — and
+most work happens on the main thread. The separation of duties is what
+`/governed-dev:task` buys you. Checks 1–3 trigger on
 *declared* tooling, so a project declaring no build, tests or linter passes them
 vacuously and says so on stderr: the gate catches declared-but-unrunnable, not
 never-declared. The shell half of the write boundary is syntactic — it stops the

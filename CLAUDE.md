@@ -117,8 +117,8 @@ plugin installed into other projects. See ADR-0001.
   (ADR-0026); the marketplace entry stays versionless so the fact has one copy.
   `claude plugin validate .`, the same `--strict`, and the plugin manifest all
   pass on CLI 2.1.247 — T-035's open follow-up, run rather than assumed.
-  Published to `github.com/ajf42/devseed`; install loop verified end to end
-  from outside this repo.
+  Published to `github.com/ajf42/devseed`, **public as the position**
+  (ADR-0032); install loop verified end to end from outside this repo.
 - Ledger documents: this file, [`TASKS.md`](TASKS.md),
   `.claude/activity.jsonl`, and the ADRs — **one file each under
   [`docs/adr/`](docs/adr/)** since ADR-0029, with
@@ -136,8 +136,9 @@ plugin installed into other projects. See ADR-0001.
   permanently (ADR-0024).
 - The roster now exists, so `hooks/boundary.sh` has real agents to bind — but
   it binds **only real subagents**: the main session thread carries no
-  `agent_type` and is unbounded (SG-0005). Most work happens on the main
-  thread, so most work is unbounded.
+  `agent_type` and is unbounded — by decision (ADR-0033, closing SG-0005): it
+  is the human's proxy, and the separation of duties is what `/task` buys.
+  Most work happens on the main thread, so most work is unbounded.
 - The shell half of the boundary is **syntactic** and stops the expedient
   redirect, not a determined evasion through a variable or glob (ADR-0013).
   What carries the weight is the capability boundary — the scribe and
@@ -147,12 +148,11 @@ plugin installed into other projects. See ADR-0001.
 - Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
   tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
   Known limits in §5. Verified against a scratch project that does have tests.
-- `templates/gate.sh` is still a placeholder. T-009 answered SG-0003 for
-  devseed's own CI (ADR-0020); the consumer half stays open.
+- `templates/gate.sh` is a documented no-op and stays one: consumer CI clones
+  devseed at the pinned tag and runs the plugin's gate (ADR-0035, closing
+  SG-0003). The README recipe is T-054.
 - `plugins/governed-dev/templates/` holds structural skeletons only, with no
   project-specific content by design.
-- Repository visibility is **public**; private was required. `gh` is not
-  installed on this machine. Open as SG-0002.
 
 **Three facts that bite if forgotten:**
 

@@ -362,9 +362,10 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   authenticated, or the GitHub web UI.
 - **Acceptance:** An unauthenticated request to the repo API returns 404;
   `marketplace add` still resolves with credentials available.
-- **Status:** blocked — deliberate temporary window, see SG-0002. **The end
-  condition is not recorded**; until it is, nothing distinguishes this from
-  indefinitely public.
+- **Status:** dropped — public is the position (ADR-0032, 2026-09-09). The end
+  condition turned out to be shipping to others: the install path and consumer
+  CI (ADR-0035) both need an unauthenticated clone, and the IP-entanglement
+  requirement was withdrawn. Closes SG-0002.
 
 ## T-012 — Stop the gate poisoning itself with test artifacts
 
@@ -1290,6 +1291,109 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   new harness code validated on one machine is the class that produced the
   Linux-only interval regex (ADR-0025) and the `TMPDIR` incident (ADR-0028).
   Batching must land and be measured before concurrency shares a diff with it.
+- **Acceptance:** written when the task is started, not now.
+- **Status:** todo
+- **Commit:** —
+
+## T-051 — Record the four ship decisions
+
+- **Description:** Shipping to other people was blocked on four open
+  decisions, taken 2026-09-09: the repository is public as the position
+  (SG-0002), the main thread is trusted (SG-0005), the `/autopilot` skill
+  leaves the plugin (SG-0012), and consumer CI runs the gate from a tagged
+  clone rather than a vendored copy (SG-0003). Ledger work only.
+- **Acceptance:** ADR-0032 through ADR-0035 exist under `docs/adr/`, each
+  with rejected alternatives and costs; the index is rebuilt; SG-0002,
+  SG-0003, SG-0005 and SG-0012 carry `(resolved in ADR-NNNN)` in their
+  headings with status updated and the original text intact; SG-0013 is
+  re-statused as operational; T-011 is `dropped` citing ADR-0032; the
+  `TODO(spec): SG-0005` marker in `hooks/boundary.sh` becomes a comment
+  citing ADR-0033; `CLAUDE.md`, `README.md` and `.claude/rules/delegation.md`
+  cite the ADRs where they cited the open gaps; gate exits 0.
+- **Status:** todo
+- **Commit:** —
+
+## T-052 — Remove the `/autopilot` skill from the plugin
+
+- **Description:** Per ADR-0034. The skill is deleted from
+  `plugins/governed-dev/skills/` and `.claude/skills/`; the script, suite,
+  CI step and `reports/` stay as devseed tooling.
+- **Acceptance:** both copies of `skills/autopilot/SKILL.md` are gone; the
+  plugin and the mirror each list five skills; `README.md` and `CLAUDE.md`
+  say five and no longer name the skill, while still documenting
+  `scripts/autopilot.sh` under "Developing devseed"; the skill's
+  report-presentation rule is in `reports/README.md`; `scripts/autopilot.sh`
+  and its suite reference no skill file; all four suites pass; gate exits 0.
+- **Status:** todo
+- **Commit:** —
+
+## T-053 — First-contact fixes in shipped artifacts
+
+- **Description:** Defects a consumer meets before doing anything useful.
+  `README.md` never names `jq`, without which every write and every turn end
+  is blocked by design. Four shipped files cite devseed-only paths
+  (`agents/implementer.md`, `agents/auditor.md`, `skills/amend/SKILL.md`,
+  `skills/resume/SKILL.md`) — the SG-0007 class again. The shipped scribe and
+  implementer describe one-file-per-ADR under `docs/adr/` while the `adr`
+  skill and `templates/DECISIONS.md` describe inline entries.
+- **Acceptance:** the README install section lists `jq` beside Git Bash with
+  the three install commands and one sentence on what its absence does; no
+  shipped agent or skill cites `plugins/governed-dev/` or `scripts/` except
+  the bootstrap fallback line, verified by grep; the scribe and implementer
+  describe the ADR home conditionally, matching how `drift.sh` resolves ids
+  (files where `docs/adr/` exists, otherwise `DECISIONS.md` headings); every
+  touched agent and skill is re-copied to its mirror; boundary and bootstrap
+  suites pass; gate exits 0.
+- **Status:** todo
+- **Commit:** —
+
+## T-054 — Consumer CI recipe
+
+- **Description:** Per ADR-0035. A README section showing a consumer how to
+  run the plugin's gate in GitHub Actions from a tagged clone, and the
+  `templates/gate.sh` header updated to point at it instead of describing the
+  question as open.
+- **Acceptance:** the README section shows full-history checkout, a clone of
+  devseed at a tag into a directory outside the workspace, and the gate run
+  with `CLAUDE_PROJECT_DIR` set; it states why the clone sits outside the
+  workspace, that the tag should match the installed plugin version, and
+  that the project's toolchain is set up first; `templates/gate.sh`'s header
+  no longer calls the CI question open; bootstrap suite passes; gate exits 0.
+- **Status:** todo
+- **Commit:** —
+
+## T-055 — Release 0.1.2
+
+- **Description:** First release meant for other people. `CHANGELOG.md`
+  arrives at this bump, as ADR-0026 said it would at the first one that had
+  something to say.
+- **Acceptance:** `CHANGELOG.md` at the root covers 0.1.0, 0.1.1 and 0.1.2
+  and is named in `CLAUDE.md`'s structure block; `plugin.json` says `0.1.2`
+  and every passage in `CLAUDE.md` naming the version agrees;
+  `claude plugin validate .` and `--strict` pass; the PR's matrix is green;
+  after merge, the merge commit's **own** matrix run is green before the
+  annotated tag `v0.1.2` is pushed (T-036's rule); a GitHub release carries
+  the changelog entry; the run id and tag hash are recorded here.
+- **Status:** todo
+- **Commit:** —
+
+## T-056 — Task-mode state file for the main-thread boundary
+
+- **Description:** The follow-up ADR-0033 names. `/task` writes a state file
+  while it runs; `boundary.sh` reads it and denies main-thread writes to the
+  three ledgers and `docs/adr/` for the duration, so the separation of duties
+  holds inside a task even when the main thread does the work. A tightening
+  under §6's ratchet. The main thread holds `Bash` and can remove the file;
+  that limit is to be stated, not solved.
+- **Acceptance:** written when the task is started, not now.
+- **Status:** todo
+- **Commit:** —
+
+## T-057 — Ship the consumer CI workflow as a template
+
+- **Description:** The follow-up ADR-0035 names. `templates/ci/gate.yml`
+  carrying the README recipe, seeded by bootstrap on request, with the tag
+  substituted from the installed plugin version.
 - **Acceptance:** written when the task is started, not now.
 - **Status:** todo
 - **Commit:** —

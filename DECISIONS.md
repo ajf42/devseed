@@ -51,6 +51,10 @@ and is a skeleton by design.
 | [ADR-0029](docs/adr/0029-one-file-per-adr.md) | active | One file per ADR, with DECISIONS.md generated as the index |
 | [ADR-0030](docs/adr/0030-autopilot-routes-not-transports.md) | active | Autopilot replaces the human transport layer with routing on the gate's verdict |
 | [ADR-0031](docs/adr/0031-spawn-count-is-the-cost-model.md) | active | Process spawns are the gate's unit of cost; checks are written batch-first |
+| [ADR-0032](docs/adr/0032-public-is-the-position.md) | active | The repository is public, as the position |
+| [ADR-0033](docs/adr/0033-main-thread-is-trusted.md) | active | The main session thread is trusted; the roster binds delegated work |
+| [ADR-0034](docs/adr/0034-autopilot-skill-leaves-the-plugin.md) | active | The `/autopilot` skill leaves the plugin; the driver stays devseed-only |
+| [ADR-0035](docs/adr/0035-consumer-ci-runs-the-gate-from-a-tagged-clone.md) | active | Consumer CI runs the plugin's gate from a tagged clone; vendoring rejected |
 
 ## Spec gaps observed
 
@@ -83,10 +87,14 @@ governance set. Left absent rather than guessed at.
 current-state record and no task ledger, and `precedence.md` has no `CLAUDE.md`
 to grant current-state authority to.
 
-### SG-0002 — The repository is public, deliberately and temporarily
+### SG-0002 — The repository is public, deliberately and temporarily *(resolved in ADR-0032)*
 
-- **Date:** 2026-07-31 (updated same day)
-- **Status:** Open — deliberate, temporary, end condition not yet recorded
+- **Date:** 2026-07-31 (updated same day; resolved 2026-09-09)
+- **Status:** Resolved — public is the position (ADR-0032). The end condition
+  turned out to be shipping to others: the install path and consumer CI
+  (ADR-0035) both need an unauthenticated clone. The IP-entanglement
+  requirement was withdrawn by the human; T-011 is dropped. The entry below
+  is kept as written.
 
 **Superseding the original entry**, which read that private was required and
 public was an unresolved gap. That is no longer the situation and the entry now
@@ -115,12 +123,14 @@ no secrets, but that holds only as long as the content stays that way. If the
 end condition is never recorded, "temporary" decays into "public", which is the
 same drift this entry was rewritten to remove.
 
-### SG-0003 — Whether consumer projects vendor their own `gate.sh` *(bootstrap and devseed's own CI both settled; consumer CI still open)*
+### SG-0003 — Whether consumer projects vendor their own `gate.sh` *(resolved in ADR-0035)*
 
-- **Date:** 2026-07-31 (narrowed 2026-08-06, CI half narrowed 2026-08-11)
-- **Status:** Open, narrowed further — bootstrap half and devseed's own CI
-  settled; whether a *consumer* project's CI needs a vendored copy is still
-  open
+- **Date:** 2026-07-31 (narrowed 2026-08-06 and 2026-08-11; resolved 2026-09-09)
+- **Status:** Resolved — consumers do not vendor. Their CI clones devseed at
+  the tag matching the installed plugin and runs the plugin's gate against the
+  checkout (ADR-0035); `templates/gate.sh` stays a documented no-op. The
+  bootstrap half and devseed's own CI were settled earlier (ADR-0020). The
+  updates and the original entry below are kept as written.
 
 **Update, 2026-08-11 (T-009/Prompt 8).** Devseed's own CI does not need
 `${CLAUDE_PLUGIN_ROOT}` at all: `.github/workflows/gate.yml` checks out
@@ -219,10 +229,14 @@ criteria, these tasks will have been written to the wrong target — and the
 convention that criteria are written before work starts will have been satisfied
 in form only. Check them against the source before starting either task.
 
-### SG-0005 — Nothing says what boundary governs the main session thread
+### SG-0005 — Nothing says what boundary governs the main session thread *(resolved in ADR-0033)*
 
-- **Date:** 2026-07-31
-- **Status:** Open — needs human confirmation
+- **Date:** 2026-07-31 (resolved 2026-09-09)
+- **Status:** Resolved — the main thread is the human's proxy and is trusted;
+  the roster binds delegated work, and the separation of duties is obtained by
+  running `/task` (ADR-0033). The assumption below held. The marker in
+  `boundary.sh` is now a comment citing the ADR; a task-mode state file that
+  would narrow this is T-056.
 
 T-007 and ADR-0007 define a write boundary per agent: spec-guardian, reviewer
 and auditor read-only; implementer denied the three root ledger documents;
@@ -419,10 +433,14 @@ telling an editor to check the shipped copy.
 **Depends on this:** an edit to a root rule leaves consumers on the old text
 indefinitely with nothing reporting it.
 
-### SG-0012 — The `/autopilot` skill ships; its driver script does not
+### SG-0012 — The `/autopilot` skill ships; its driver script does not *(resolved in ADR-0034)*
 
-- **Date:** 2026-08-11
-- **Status:** Open — needs human decision
+- **Date:** 2026-08-11 (resolved 2026-09-09)
+- **Status:** Resolved — the skill leaves the plugin and the mirror (T-052);
+  the script stays devseed-only tooling, invoked by hand (ADR-0034). Neither
+  of the two options the entry below anticipated was taken: the coupling is
+  removed by deleting the shipped half rather than by shipping the missing one
+  or by teaching the parity guard an exemption.
 
 `scripts/autopilot.sh` is devseed's own dev tooling, alongside the three
 regression suites, and nothing under `scripts/` ships in the plugin. The
@@ -449,8 +467,10 @@ which today it has none.
 
 ### SG-0013 — `TASKS.md` cannot mark a task ineligible for unattended work
 
-- **Date:** 2026-08-11
-- **Status:** Open — needs human decision
+- **Date:** 2026-08-11 (re-statused 2026-09-09)
+- **Status:** Open — operational, not mechanical. Autopilot is devseed-only
+  tooling since ADR-0034 and is always given explicit task ids; no status
+  vocabulary change is planned. The entry stays open so the limit is on record.
 
 Autopilot picks the first task whose status is `todo`, top to bottom. The
 status vocabulary is `todo` / `in-progress` / `done` / `blocked` / `dropped`,
