@@ -36,6 +36,23 @@ Git Bash and hands off, or fails with install instructions. It never silently
 skips — a gate that only runs on one platform is a gate that silently does not
 run. See ADR-0006.
 
+**`jq` is required, on every platform.**
+
+```
+Windows   winget install --id jqlang.jq -e
+macOS     brew install jq
+Debian    sudo apt-get install jq
+```
+
+The hooks parse a JSON event and emit JSON decisions, and hand-rolled escaping
+in shell is how a deny reason containing a quote becomes a malformed object the
+harness drops — a boundary that stops enforcing and says nothing. So without
+`jq` the boundary hook denies **every** write and the `Stop` hook blocks every
+turn, deliberately: an enforcement point that cannot evaluate itself must not
+default to allow. Install it before the first session. Note that winget puts it
+in a directory only processes started *after* the install can see, so start a
+new terminal; the hooks probe the usual install locations when `PATH` misses.
+
 ## What you get
 
 | | |

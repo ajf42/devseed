@@ -1344,8 +1344,19 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   (files where `docs/adr/` exists, otherwise `DECISIONS.md` headings); every
   touched agent and skill is re-copied to its mirror; boundary and bootstrap
   suites pass; gate exits 0.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
+- **Narrowed while doing it, and kept:** the criterion read "no shipped agent
+  or skill cites `plugins/governed-dev/` or `scripts/` except the bootstrap
+  fallback line". What the shipped files actually needed was the *resolution
+  the hooks already use* — `${CLAUDE_PLUGIN_ROOT}/...` first, the repo-relative
+  path as the named fallback — which `resume/SKILL.md` was already written
+  against. So the repo-relative path survives in four files, always as the
+  second half of that pair, never alone. A grep for the bare path is therefore
+  the wrong test and the criterion is recorded as narrowed rather than met.
+- **Also fixed, same class:** `task/SKILL.md` cited `T-027`, `SG-0010` and
+  `ADR-0022` — devseed ids that resolve to nothing in a consumer's ledger. The
+  prose they annotated stands on its own and the citations are dropped.
 
 ## T-054 — Consumer CI recipe
 

@@ -15,9 +15,13 @@ the guards, not so you can act on them.
 
 ## What to run
 
+`$G` below is the plugin's `gates/` directory: `${CLAUDE_PLUGIN_ROOT}/gates`
+when running from an installed plugin, otherwise `plugins/governed-dev/gates`
+relative to the repository root — the same resolution the hooks use.
+
 ```
-bash plugins/governed-dev/gates/drift.sh     # check 7 alone — the drift guards
-bash plugins/governed-dev/gates/gate.sh      # all seven checks
+bash "$G/drift.sh"     # check 7 alone — the drift guards
+bash "$G/gate.sh"      # all seven checks
 ```
 
 `drift.sh` exits 0 when the documents and the repository agree, and 2 when they
