@@ -26,7 +26,7 @@ Then `/reload-plugins`. Skills install **namespaced** — `/governed-dev:bootstr
 not `/bootstrap`. A "missing" skill is usually this.
 
 To pin to a release, add the marketplace by git URL with a tag ref —
-`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.0` — and note
+`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.2` — and note
 that an installed plugin moves only when `plugin.json`'s `version` is bumped
 *and* you run `/plugin update`, so an install left alone stays exactly where it
 was.
@@ -116,6 +116,44 @@ expedient redirect, not a determined evasion through a variable or a glob
 (ADR-0013). And the reviewer and auditor hold `Bash` permanently; their write
 boundary is best-effort by acceptance rather than by capability, with their
 outputs gated instead (ADR-0024).
+
+## Running the gate in your CI
+
+The gate is the single contract between a local run and a CI run, so CI runs
+**the same script**, not a copy of it. The plugin is not installed on a runner,
+so clone it at the tag matching your installed version and point it at your
+checkout:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0          # not the default depth-1 clone -- see below
+
+# ... set up your own build, test and lint tooling here: a declared
+# toolchain that is missing is a gate failure, not a skip.
+
+- name: Clone the gate
+  run: git clone --depth 1 --branch v0.1.2 https://github.com/ajf42/devseed "$RUNNER_TEMP/devseed"
+
+- name: Gate
+  run: CLAUDE_PROJECT_DIR="$GITHUB_WORKSPACE" bash "$RUNNER_TEMP/devseed/plugins/governed-dev/gates/gate.sh"
+```
+
+Three things about that are load-bearing:
+
+- **`fetch-depth: 0`.** Two checks resolve the commit hashes your `TASKS.md`
+  cites. In a shallow clone none of them resolve and a correct ledger fails —
+  which is exactly how devseed's own first matrix run went red on all three
+  legs (ADR-0025).
+- **The clone goes outside the workspace.** `$RUNNER_TEMP`, not the repository.
+  A new top-level directory inside your checkout is drift the guard will report
+  against your `CLAUDE.md` structure block, correctly.
+- **Pin the tag to the version you installed.** `/plugin` and CI then run the
+  same gate. A mismatch is a visible ref rather than a copy that drifted
+  silently, which is the whole reason nothing is vendored into your repository.
+
+`jq` is on the GitHub-hosted runner images already; elsewhere, install it. The
+gate needs bash, so on a Windows runner set `shell: bash`.
 
 ## ⚠ Four filenames exist twice, with opposite roles
 

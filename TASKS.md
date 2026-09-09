@@ -998,8 +998,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   still passes; a new ADR at the next free number records the decision with the
   rejected alternative (interviewing for §6) and what seeding makes harder; all
   four suites pass.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `8524ab9`
 
 ## T-046 — `drift.sh`: batch the per-item spawns
 
@@ -1344,8 +1344,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   (files where `docs/adr/` exists, otherwise `DECISIONS.md` headings); every
   touched agent and skill is re-copied to its mirror; boundary and bootstrap
   suites pass; gate exits 0.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `b75ef74`
 - **Narrowed while doing it, and kept:** the criterion read "no shipped agent
   or skill cites `plugins/governed-dev/` or `scripts/` except the bootstrap
   fallback line". What the shipped files actually needed was the *resolution
@@ -1370,7 +1370,7 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   workspace, that the tag should match the installed plugin version, and
   that the project's toolchain is set up first; `templates/gate.sh`'s header
   no longer calls the CI question open; bootstrap suite passes; gate exits 0.
-- **Status:** todo
+- **Status:** in-progress
 - **Commit:** —
 
 ## T-055 — Release 0.1.2

@@ -110,7 +110,7 @@ plugin installed into other projects. See ADR-0001.
   loop). Govern devseed itself; ship in consumer-facing form, ids and paths
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
-- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.1"`
+- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.2"`
   (ADR-0026); the marketplace entry stays versionless so the fact has one copy.
   `claude plugin validate .`, the same `--strict`, and the plugin manifest all
   pass on CLI 2.1.247 — T-035's open follow-up, run rather than assumed.
@@ -196,12 +196,13 @@ scripts/autopilot.sh               drives /task headless, routes on the gate (AD
 scripts/autopilot-regression.sh    asserts the routing; stub worker, real gate
 reports/                           autopilot run reports: the decision queue
   README.md                        what lands here and how to read it
-README.md                          what devseed is, install, the sharp edges
+README.md                          what devseed is, install, CI, the sharp edges
+CHANGELOG.md                       per-release, written for the installer
 LICENSE                            MIT, © 2026 Andrew Fitzpatrick (T-034)
 .gitignore
 .gitattributes                     forces LF for *.sh on checkout (ADR-0015)
 plugins/governed-dev/              THE PLUGIN — everything below ships
-  .claude-plugin/plugin.json       "version": "0.1.0" (ADR-0026)
+  .claude-plugin/plugin.json       the shipped version (ADR-0026)
   agents/                          THE ROSTER — tools: is the enforcement
     spec-guardian.md               gates in; SANCTIONED/GAP/CONFLICT
     implementer.md                 builds, test-first; denied the 3 ledgers
