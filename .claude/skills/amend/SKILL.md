@@ -58,8 +58,10 @@ it as loosening; misfiling a loosening as a tightening is the silent change
 3. **Get explicit human approval of the recorded ADR** — a yes to the ADR as
    written, not to the general idea. No approval, no edit.
 4. **Only then edit `DESIGN.md`**, applying the replacement text exactly and
-   citing the ADR number at the change. Run the full gate afterward:
-   `bash plugins/governed-dev/gates/gate.sh` must exit 0.
+   citing the ADR number at the change. Then run the full gate — the same
+   script the `Stop` hook runs, at `${CLAUDE_PLUGIN_ROOT}/gates/gate.sh` from
+   an installed plugin, otherwise `plugins/governed-dev/gates/gate.sh`
+   relative to the repository root. It must exit 0.
 
 ## What you never do
 

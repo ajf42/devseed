@@ -105,8 +105,11 @@ cannot deny a tool the agent was never given.
   weight instead is the capability boundary: the scribe and spec-guardian hold
   no shell at all, which is not a matcher and cannot be outwitted.
 - **The main session thread carries no `agent_type`**, so none of these
-  boundaries bind it. Work done on the main thread is unbounded. The roster
-  binds real subagents. That is the honest scope.
+  boundaries bind it. Work done on the main thread is unbounded, and that is
+  deliberate: the main thread is the human's proxy, and denying there would
+  make the project unwritable outside a subagent. The roster binds delegated
+  work — the separation of duties is what running the task loop buys you.
+  That is the honest scope.
 
 ## Using the loop
 

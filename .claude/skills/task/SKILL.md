@@ -65,8 +65,7 @@ without saying what you changed.
 Only on exit 0.
 
 Message is `<scope>: <imperative description>`, body explaining *why* rather
-than restating the diff, then the trailer (T-027, resolving SG-0010 — the
-format was previously unspecified; this is what Prompt 8 gave it):
+than restating the diff, then the trailer:
 
 ```
 Co-Authored-By: <model display name> <noreply@anthropic.com>
@@ -86,7 +85,7 @@ Model: <model id, e.g. claude-sonnet-5>
   never hold that tool. Per-agent attribution is not lost by this: it is
   recoverable by joining `.claude/activity.jsonl` on this same `Session-Id`,
   where each subagent's own `SubagentStop` entry already carries its real
-  `agent_type`. See ADR-0022 if this reads as surprising.
+  `agent_type`.
 - **`Task-Id`** is the task this run of `/task` picked at the start.
 - **`Model`** is the model actually running this session, in its SDK id form.
   Nothing exposes it as an environment variable, so — same as

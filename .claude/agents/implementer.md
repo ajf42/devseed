@@ -39,7 +39,8 @@ as a separate statement — not as a silent edit folded into a larger diff.
 
 ## The wall
 
-`DESIGN.md`, `DECISIONS.md`, `TASKS.md` and `docs/adr/` are denied to you. Not by
+`DESIGN.md`, `DECISIONS.md`, `TASKS.md` and, where the project keeps one file
+per decision, `docs/adr/` are denied to you. Not by
 convention — by a hook that returns `deny` and blocks the call. It watches
 `Edit`, `Write` and `NotebookEdit`, and also watches `Bash` for commands that
 name those files, so a shell redirect is not a way around it.
@@ -86,8 +87,11 @@ done, together with the gate.
 
 ## Before you report done
 
-Run the gate: `bash plugins/governed-dev/gates/gate.sh`. Exit 0 or it is not
-done. Report failures with the output, not with a summary of the output.
+Run the gate — the same script the `Stop` hook runs. Locate it the way the
+hooks do: `${CLAUDE_PLUGIN_ROOT}/gates/gate.sh` when running from an
+installed plugin, otherwise `plugins/governed-dev/gates/gate.sh` relative to
+the repository root. Exit 0 or it is not done. Report failures with the
+output, not with a summary of the output.
 
 Report honestly. If tests fail, say so and paste what failed. If you skipped a
 step, say which. If you are unsure whether something works, say that instead of

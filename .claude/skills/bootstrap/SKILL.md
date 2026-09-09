@@ -61,6 +61,14 @@ within a week nothing distinguishes it from a decision someone made. That is the
 failure this whole scaffold exists to prevent, and bootstrap is the first place
 it can happen.
 
+**A skeleton section is silent, and silence must cost something.** For every
+section you leave skeletal, write an entry under "Spec gaps observed" in
+`DECISIONS.md`, numbered from `SG-0001` up in the order you leave them. Each
+names: the section, what it does not say, **what is unenforced or unreachable
+while it stays empty**, and the shape a resolution would take. Without this an
+empty section reads as "nothing to say here" rather than "nobody has decided
+yet", and the two are opposites. Report the ids you wrote.
+
 ## What gets written
 
 From `templates/`, copied — not regenerated:
@@ -75,6 +83,16 @@ From `templates/`, copied — not regenerated:
 | `.gitignore` | `.gitignore` | append missing lines if one exists |
 | `.gitattributes` | `.gitattributes` | append missing lines if one exists |
 | `gate.sh` | `gate.sh` | **verbatim.** See below. |
+
+**§5 and §6 of `DESIGN.md` arrive filled in, and stay that way.** They are
+mechanism, not opinion: §5 describes the contract the shipped `gate.sh`
+already enforces, and §6 is the procedure `/amend` executes and refuses to
+reorder. Do not interview for them, do not blank them, and do not rewrite
+them into the project's voice. Left empty they deadlock the project — the
+only sanctioned route to editing `DESIGN.md` is §6, and writing §6 is an
+edit to `DESIGN.md`. §5's *second* half, this project's own build rules, is
+a prompted slot and is interview material like any other section; leaving it
+skeletal earns a spec-gap entry per the rule above.
 
 Also create an empty `.claude/activity.jsonl` — the hooks append to it, and a
 missing file reads as a hook failure rather than as an unused log.

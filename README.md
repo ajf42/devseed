@@ -26,7 +26,7 @@ Then `/reload-plugins`. Skills install **namespaced** — `/governed-dev:bootstr
 not `/bootstrap`. A "missing" skill is usually this.
 
 To pin to a release, add the marketplace by git URL with a tag ref —
-`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.0` — and note
+`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.2` — and note
 that an installed plugin moves only when `plugin.json`'s `version` is bumped
 *and* you run `/plugin update`, so an install left alone stays exactly where it
 was.
@@ -36,6 +36,23 @@ Git Bash and hands off, or fails with install instructions. It never silently
 skips — a gate that only runs on one platform is a gate that silently does not
 run. See ADR-0006.
 
+**`jq` is required, on every platform.**
+
+```
+Windows   winget install --id jqlang.jq -e
+macOS     brew install jq
+Debian    sudo apt-get install jq
+```
+
+The hooks parse a JSON event and emit JSON decisions, and hand-rolled escaping
+in shell is how a deny reason containing a quote becomes a malformed object the
+harness drops — a boundary that stops enforcing and says nothing. So without
+`jq` the boundary hook denies **every** write and the `Stop` hook blocks every
+turn, deliberately: an enforcement point that cannot evaluate itself must not
+default to allow. Install it before the first session. Note that winget puts it
+in a directory only processes started *after* the install can see, so start a
+new terminal; the hooks probe the usual install locations when `PATH` misses.
+
 ## What you get
 
 | | |
@@ -43,7 +60,7 @@ run. See ADR-0006.
 | **`gate.sh`** | The single executable definition of "done". Seven checks: build, tests, lint, working-memory-current, task-ledger-honest, spec-gaps-answered, and a structural drift guard over the ledger documents. Exit 0 or 2, never 1 — Claude Code treats exit 1 as non-blocking. Verification only; it never commits, pushes, or writes. |
 | **Ledger documents** | `DESIGN.md` (what the system should be), `CLAUDE.md` (what exists now, line-budgeted), `DECISIONS.md` (why, append-only), `TASKS.md` (what's next, one task per commit). |
 | **Rules** | Document precedence, and what to do at a spec gap: ask, or record the assumption in *both* the code and `DECISIONS.md`. Never invent. |
-| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, six skills (`bootstrap`, `task`, `adr`, `resume`, `amend`, `autopilot`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
+| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, five skills (`bootstrap`, `task`, `adr`, `resume`, `amend`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
 
 ## A working session
 
@@ -87,9 +104,11 @@ filesystem disagree about — quoted and unreconciled. It changes nothing.
 
 ## What this does not do
 
-The main session thread is **unbounded** (SG-0005). The roster's write
-boundaries bind real subagents, because the hook event carries `agent_type` only
-inside one — and most work happens on the main thread. Checks 1–3 trigger on
+The main session thread is **unbounded**, by decision (ADR-0033, closing
+SG-0005): it is the human's proxy. The roster's write boundaries bind real
+subagents, because the hook event carries `agent_type` only inside one — and
+most work happens on the main thread. The separation of duties is what
+`/governed-dev:task` buys you. Checks 1–3 trigger on
 *declared* tooling, so a project declaring no build, tests or linter passes them
 vacuously and says so on stderr: the gate catches declared-but-unrunnable, not
 never-declared. The shell half of the write boundary is syntactic — it stops the
@@ -97,6 +116,44 @@ expedient redirect, not a determined evasion through a variable or a glob
 (ADR-0013). And the reviewer and auditor hold `Bash` permanently; their write
 boundary is best-effort by acceptance rather than by capability, with their
 outputs gated instead (ADR-0024).
+
+## Running the gate in your CI
+
+The gate is the single contract between a local run and a CI run, so CI runs
+**the same script**, not a copy of it. The plugin is not installed on a runner,
+so clone it at the tag matching your installed version and point it at your
+checkout:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0          # not the default depth-1 clone -- see below
+
+# ... set up your own build, test and lint tooling here: a declared
+# toolchain that is missing is a gate failure, not a skip.
+
+- name: Clone the gate
+  run: git clone --depth 1 --branch v0.1.2 https://github.com/ajf42/devseed "$RUNNER_TEMP/devseed"
+
+- name: Gate
+  run: CLAUDE_PROJECT_DIR="$GITHUB_WORKSPACE" bash "$RUNNER_TEMP/devseed/plugins/governed-dev/gates/gate.sh"
+```
+
+Three things about that are load-bearing:
+
+- **`fetch-depth: 0`.** Two checks resolve the commit hashes your `TASKS.md`
+  cites. In a shallow clone none of them resolve and a correct ledger fails —
+  which is exactly how devseed's own first matrix run went red on all three
+  legs (ADR-0025).
+- **The clone goes outside the workspace.** `$RUNNER_TEMP`, not the repository.
+  A new top-level directory inside your checkout is drift the guard will report
+  against your `CLAUDE.md` structure block, correctly.
+- **Pin the tag to the version you installed.** `/plugin` and CI then run the
+  same gate. A mismatch is a visible ref rather than a copy that drifted
+  silently, which is the whole reason nothing is vendored into your repository.
+
+`jq` is on the GitHub-hosted runner images already; elsewhere, install it. The
+gate needs bash, so on a Windows runner set `shell: bash`.
 
 ## ⚠ Four filenames exist twice, with opposite roles
 

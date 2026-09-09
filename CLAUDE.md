@@ -79,12 +79,11 @@ plugin installed into other projects. See ADR-0001.
   [`.claude/rules/delegation.md`](.claude/rules/delegation.md).
   Mirrored to `.claude/agents/` so devseed can run its own roster (ADR-0014);
   drift check 6 enforces the two byte-identical.
-- **The skills**, six at `plugins/governed-dev/skills/`: `bootstrap` seeds a
+- **The skills**, five at `plugins/governed-dev/skills/`: `bootstrap` seeds a
   project from `templates/`; `task` runs a task through the full agent loop
   then commits — the only thing that commits; `adr` appends a decision entry;
   `resume` reconstructs state from the ledger, changing nothing; `amend`
-  executes §6 and is the sole sanctioned route to editing DESIGN.md (T-021);
-  `autopilot` wraps the driver loop below.
+  executes §6 and is the sole sanctioned route to editing DESIGN.md (T-021).
   Mirrored to `.claude/skills/`, a third mirror on the hooks/roster reasoning
   (ADR-0016). `task` trailers commits with agent type, session, task id,
   model (T-027, ADR-0022), closing SG-0010.
@@ -95,30 +94,28 @@ plugin installed into other projects. See ADR-0001.
 - **The bootstrap skill's own regression:** `bash scripts/bootstrap-regression.sh`.
   Seeds a scratch project and runs the real drift guard and gate on it — caught
   dangling template ids (T-008) and a shipped convention the gate rejects (T-043).
-- **Autopilot**, `bash scripts/autopilot.sh` and the `/autopilot` skill (T-041,
+- **Autopilot**, `bash scripts/autopilot.sh` — **devseed-only tooling, invoked
+  by hand** since ADR-0034 removed the skill that wrapped it (T-041, T-052,
   ADR-0030). Runs `/task` headless over the `todo` queue and **routes on the
-  gate's verdict**, which it obtains by running the gate itself — never on the
-  worker's account of its own correctness. Agreement → one digest line and
-  continue; a new SG entry, anything `/amend`-shaped, a question, or any edit
-  to DESIGN.md → stop; gate exit 2 → one retry with the findings appended, then
-  stop; anything else → stop. Bounded: 3 tasks per run, a cost ceiling, three
-  strikes per task. It never touches DESIGN.md, never pushes, never merges, and
-  commits only `reports/`. Its own regression, with a stubbed worker and the
-  real gate: `bash scripts/autopilot-regression.sh`. **Never run against a real
-  worker yet** — the CLI is present (2.1.247) but autopilot has not been
-  pointed at it; the first real run wants explicit ids and `--max-tasks 1`.
+  gate's verdict**, obtained by running the gate itself — never on the worker's
+  account of its own correctness. Agreement → a digest line; a new SG entry,
+  anything `/amend`-shaped, a question, or any edit to DESIGN.md → stop; gate
+  exit 2 → one retry, then stop. Bounded: 3 tasks, a cost ceiling, three
+  strikes. Never touches DESIGN.md, never pushes, commits only `reports/`.
+  Regression: `bash scripts/autopilot-regression.sh`. **Never run against a
+  real worker yet** — give the first run explicit ids and `--max-tasks 1`.
 - Four rule files at [`.claude/rules/`](.claude/rules/) — `precedence.md`
   (document authority), `ambiguity.md` (never invent past a spec gap),
   `ledger.md` (which document owns which fact), `delegation.md` (the agent
   loop). Govern devseed itself; ship in consumer-facing form, ids and paths
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
-- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.1"`
+- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.2"`
   (ADR-0026); the marketplace entry stays versionless so the fact has one copy.
   `claude plugin validate .`, the same `--strict`, and the plugin manifest all
   pass on CLI 2.1.247 — T-035's open follow-up, run rather than assumed.
-  Published to `github.com/ajf42/devseed`; install loop verified end to end
-  from outside this repo.
+  Published to `github.com/ajf42/devseed`, **public as the position**
+  (ADR-0032); install loop verified end to end from outside this repo.
 - Ledger documents: this file, [`TASKS.md`](TASKS.md),
   `.claude/activity.jsonl`, and the ADRs — **one file each under
   [`docs/adr/`](docs/adr/)** since ADR-0029, with
@@ -136,8 +133,9 @@ plugin installed into other projects. See ADR-0001.
   permanently (ADR-0024).
 - The roster now exists, so `hooks/boundary.sh` has real agents to bind — but
   it binds **only real subagents**: the main session thread carries no
-  `agent_type` and is unbounded (SG-0005). Most work happens on the main
-  thread, so most work is unbounded.
+  `agent_type` and is unbounded — by decision (ADR-0033, closing SG-0005): it
+  is the human's proxy, and the separation of duties is what `/task` buys.
+  Most work happens on the main thread, so most work is unbounded.
 - The shell half of the boundary is **syntactic** and stops the expedient
   redirect, not a determined evasion through a variable or glob (ADR-0013).
   What carries the weight is the capability boundary — the scribe and
@@ -147,12 +145,11 @@ plugin installed into other projects. See ADR-0001.
 - Checks 1–3 pass vacuously in devseed, which by DESIGN.md §3 has no build,
   tests, or linter. They trigger on *declared* tooling; see ADR-0004 and the
   Known limits in §5. Verified against a scratch project that does have tests.
-- `templates/gate.sh` is still a placeholder. T-009 answered SG-0003 for
-  devseed's own CI (ADR-0020); the consumer half stays open.
+- `templates/gate.sh` is a documented no-op and stays one: consumer CI clones
+  devseed at the pinned tag and runs the plugin's gate (ADR-0035, closing
+  SG-0003). The README recipe is T-054.
 - `plugins/governed-dev/templates/` holds structural skeletons only, with no
   project-specific content by design.
-- Repository visibility is **public**; private was required. `gh` is not
-  installed on this machine. Open as SG-0002.
 
 **Three facts that bite if forgotten:**
 
@@ -199,12 +196,13 @@ scripts/autopilot.sh               drives /task headless, routes on the gate (AD
 scripts/autopilot-regression.sh    asserts the routing; stub worker, real gate
 reports/                           autopilot run reports: the decision queue
   README.md                        what lands here and how to read it
-README.md                          what devseed is, install, the sharp edges
+README.md                          what devseed is, install, CI, the sharp edges
+CHANGELOG.md                       per-release, written for the installer
 LICENSE                            MIT, © 2026 Andrew Fitzpatrick (T-034)
 .gitignore
 .gitattributes                     forces LF for *.sh on checkout (ADR-0015)
 plugins/governed-dev/              THE PLUGIN — everything below ships
-  .claude-plugin/plugin.json       "version": "0.1.0" (ADR-0026)
+  .claude-plugin/plugin.json       the shipped version (ADR-0026)
   agents/                          THE ROSTER — tools: is the enforcement
     spec-guardian.md               gates in; SANCTIONED/GAP/CONFLICT
     implementer.md                 builds, test-first; denied the 3 ledgers
@@ -217,7 +215,6 @@ plugins/governed-dev/              THE PLUGIN — everything below ships
     adr/SKILL.md                   appends a DECISIONS.md entry
     resume/SKILL.md                reconstructs context from the ledger
     amend/SKILL.md                 executes §6; sole route to editing DESIGN.md
-    autopilot/SKILL.md             drives scripts/autopilot.sh; surfaces its report
   gates/                           THE GATE — definition of "done"
     gate.sh                        orchestrator; --fast = checks 1-3
     lib.sh                         die/note/have, changed_files

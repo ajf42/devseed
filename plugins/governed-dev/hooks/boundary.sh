@@ -52,12 +52,12 @@ hook_fields \
 # kept here because the field is now read in the batch above.
 AGENT="${AGENT##*:}"
 
-# TODO(spec): SG-0005 — DESIGN.md and T-007 define boundaries per agent but say
-# nothing about the main session thread, which carries no agent_type at all.
-# Assumed: absent agent_type means the top-level session, which has no declared
-# boundary and is allowed. Denying instead would make the project unwritable
-# outside a subagent. This is the assumption that decides whether the whole
-# roster is enforcement or theatre, so it is recorded rather than buried.
+# No agent_type means the main session thread, which is the human's proxy and
+# is TRUSTED -- decided in ADR-0033, closing SG-0005. The roster binds delegated
+# work: under /task the four loop agents are real subagents and every rule
+# below applies to them. Denying here instead would make the project unwritable
+# outside a subagent. This is the line that decides whether the roster is
+# enforcement or theatre, so the decision is cited rather than buried.
 [ -n "$AGENT" ] || exit 0
 
 deny() {

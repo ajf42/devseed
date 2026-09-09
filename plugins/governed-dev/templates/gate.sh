@@ -7,11 +7,12 @@
 # the repository -- a package.json build script, a tests/ directory, a linter
 # config -- so there is nothing to calibrate here per project.
 #
-# Whether CI should vendor a copy instead is a separate, open question:
-# ${CLAUDE_PLUGIN_ROOT} does not resolve where the plugin is not installed, so
-# CI either vendors the gate or installs the plugin first. Filling this in
-# before that is decided would create a second definition of "done" with no
-# maintainer, drifting from the real one from the day it was written.
+# CI does not vendor a copy either, and that is settled rather than open: a
+# CI job clones the plugin's repository at the tag matching your installed
+# version and runs its gates/gate.sh against your checkout. The plugin's README
+# has the recipe. Filling this file in would create a second definition of
+# "done" with no maintainer, drifting from the real one from the day it was
+# written -- and the copy that CI ran would be the one nobody updated.
 #
 # PATH CONVENTION (see the plugin's hooks/hooks.json):
 #   A gate inspects THIS PROJECT'S code, rooted at ${CLAUDE_PROJECT_DIR}. It is

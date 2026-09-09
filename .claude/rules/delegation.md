@@ -101,8 +101,9 @@ cannot deny a tool the agent was never given. See ADR-0007 and ADR-0013.
 syntactic. It stops the expedient redirect, not a determined evasion through a
 variable or a glob (ADR-0013). And the main session thread carries no
 `agent_type` at all, so **none of these boundaries bind it** — work done on the
-main thread is unbounded (SG-0005). The roster binds real subagents. That is
-the honest scope.
+main thread is unbounded, by decision (ADR-0033, closing SG-0005): the main
+thread is the human's proxy, and the separation of duties is obtained by
+running `/task`. The roster binds real subagents. That is the honest scope.
 
 ## Using the loop
 
