@@ -60,8 +60,10 @@
 # Usage:  bash scripts/autopilot.sh [options] [T-NNN ...]
 #         bash scripts/autopilot.sh --help
 #
-# devseed's own dev tooling, alongside the three regression suites. It does not
-# ship in the plugin; the skill that wraps it does. See SG-0012.
+# devseed's own dev tooling, alongside the three regression suites. Neither this
+# script nor any skill wrapping it ships in the plugin: ADR-0034 removed the
+# skill rather than ship a driver that has never run against a real worker.
+# Invoke it by hand, with explicit task ids. Closes SG-0012.
 #
 # Deliberately not `set -e`: exit codes carry meaning here, and -e would
 # surface a routing decision as exit 1, which blocks nothing.

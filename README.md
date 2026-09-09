@@ -43,7 +43,7 @@ run. See ADR-0006.
 | **`gate.sh`** | The single executable definition of "done". Seven checks: build, tests, lint, working-memory-current, task-ledger-honest, spec-gaps-answered, and a structural drift guard over the ledger documents. Exit 0 or 2, never 1 — Claude Code treats exit 1 as non-blocking. Verification only; it never commits, pushes, or writes. |
 | **Ledger documents** | `DESIGN.md` (what the system should be), `CLAUDE.md` (what exists now, line-budgeted), `DECISIONS.md` (why, append-only), `TASKS.md` (what's next, one task per commit). |
 | **Rules** | Document precedence, and what to do at a spec gap: ask, or record the assumption in *both* the code and `DECISIONS.md`. Never invent. |
-| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, six skills (`bootstrap`, `task`, `adr`, `resume`, `amend`, `autopilot`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
+| **Agents, skills, hooks** | Five agents whose `tools:` lists are the enforcement, five skills (`bootstrap`, `task`, `adr`, `resume`, `amend`), and eight lifecycle hooks — the load-bearing one being `Stop`, which runs the full gate and blocks the turn ending on failure. |
 
 ## A working session
 
