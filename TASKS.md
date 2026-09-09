@@ -1370,8 +1370,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   workspace, that the tag should match the installed plugin version, and
   that the project's toolchain is set up first; `templates/gate.sh`'s header
   no longer calls the CI question open; bootstrap suite passes; gate exits 0.
-- **Status:** in-progress
-- **Commit:** —
+- **Status:** done
+- **Commit:** `95877cb`
 
 ## T-055 — Release 0.1.2
 
@@ -1385,8 +1385,9 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   after merge, the merge commit's **own** matrix run is green before the
   annotated tag `v0.1.2` is pushed (T-036's rule); a GitHub release carries
   the changelog entry; the run id and tag hash are recorded here.
-- **Status:** todo
-- **Commit:** —
+- **Status:** in-progress
+- **Commit:** `95877cb` (version bump and changelog; tag and
+  release recorded below once the merge commit's own matrix run is green)
 
 ## T-056 — Task-mode state file for the main-thread boundary
 
