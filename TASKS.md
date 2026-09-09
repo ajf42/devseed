@@ -1310,8 +1310,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `TODO(spec): SG-0005` marker in `hooks/boundary.sh` becomes a comment
   citing ADR-0033; `CLAUDE.md`, `README.md` and `.claude/rules/delegation.md`
   cite the ADRs where they cited the open gaps; gate exits 0.
-- **Status:** todo
-- **Commit:** —
+- **Status:** done
+- **Commit:** `f309082`
 
 ## T-052 — Remove the `/autopilot` skill from the plugin
 
@@ -1324,8 +1324,8 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   `scripts/autopilot.sh` under "Developing devseed"; the skill's
   report-presentation rule is in `reports/README.md`; `scripts/autopilot.sh`
   and its suite reference no skill file; all four suites pass; gate exits 0.
-- **Status:** todo
-- **Commit:** —
+- **Status:** done
+- **Commit:** `e6b28a1`
 
 ## T-053 — First-contact fixes in shipped artifacts
 
