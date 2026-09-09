@@ -1385,9 +1385,21 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   after merge, the merge commit's **own** matrix run is green before the
   annotated tag `v0.1.2` is pushed (T-036's rule); a GitHub release carries
   the changelog entry; the run id and tag hash are recorded here.
-- **Status:** in-progress
+- **Status:** in-progress — **blocked on GitHub access**, not on work.
 - **Commit:** `95877cb` (version bump and changelog; tag and
   release recorded below once the merge commit's own matrix run is green)
+- **Where it stopped, 2026-09-09:** everything through T-054 is committed and
+  pushed as branch `ship-0.1.2`. The gate and all four suites pass locally,
+  `claude plugin validate` passes plain and `--strict`, and the CI recipe was
+  exercised end to end against a scratch project seeded from `templates/`,
+  with the gate run from a separate clone. What is left needs a GitHub
+  credential this session does not have: `gate.yml` fires on `pull_request`
+  and on push to `main` only, so the branch push started no run, and `gh` is
+  not installed. **Remaining, in order:** open the PR, confirm the matrix is
+  green, merge, wait for the *merge commit's own* run to go green, then
+  annotated tag `v0.1.2` and a release carrying the `CHANGELOG.md` entry.
+  The tag rule is T-036's and is not satisfied by descending from a green
+  commit.
 
 ## T-056 — Task-mode state file for the main-thread boundary
 
