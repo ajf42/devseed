@@ -26,7 +26,7 @@ Then `/reload-plugins`. Skills install **namespaced** — `/governed-dev:bootstr
 not `/bootstrap`. A "missing" skill is usually this.
 
 To pin to a release, add the marketplace by git URL with a tag ref —
-`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.2` — and note
+`/plugin marketplace add https://github.com/ajf42/devseed.git#v0.1.3` — and note
 that an installed plugin moves only when `plugin.json`'s `version` is bumped
 *and* you run `/plugin update`, so an install left alone stays exactly where it
 was.
@@ -133,7 +133,7 @@ checkout:
 # toolchain that is missing is a gate failure, not a skip.
 
 - name: Clone the gate
-  run: git clone --depth 1 --branch v0.1.2 https://github.com/ajf42/devseed "$RUNNER_TEMP/devseed"
+  run: git clone --depth 1 --branch v0.1.3 https://github.com/ajf42/devseed "$RUNNER_TEMP/devseed"
 
 - name: Gate
   run: CLAUDE_PROJECT_DIR="$GITHUB_WORKSPACE" bash "$RUNNER_TEMP/devseed/plugins/governed-dev/gates/gate.sh"

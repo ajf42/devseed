@@ -110,7 +110,7 @@ plugin installed into other projects. See ADR-0001.
   loop). Govern devseed itself; ship in consumer-facing form, ids and paths
   stripped, at `templates/rules/`, installed by bootstrap (ADR-0017; closes
   SG-0007). No guard compares the two copies — SG-0011.
-- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.2"`
+- Plugin/marketplace manifests. `plugin.json` declares `"version": "0.1.3"`
   (ADR-0026); the marketplace entry stays versionless so the fact has one copy.
   `claude plugin validate .`, the same `--strict`, and the plugin manifest all
   pass on CLI 2.1.247 — T-035's open follow-up, run rather than assumed.

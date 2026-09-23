@@ -1449,5 +1449,21 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
   the same project with the skill's paths staged **passes** it, and that
   `.claude/.hook-state/` and `.claude/settings.local.json` do not show in
   `git status`; all four regression suites pass; gate exits 0.
-- **Status:** in-progress
+- **Status:** done
+- **Commit:** `fbfa85b`
+
+## T-059 — Release 0.1.3
+
+- **Description:** Ship T-058. An installed plugin moves only on a version
+  bump (ADR-0026), so without this the bootstrap fix reaches nobody —
+  including the consumer that found it.
+- **Acceptance:** `plugin.json` says `0.1.3` and every passage in `CLAUDE.md`
+  and `README.md` naming the current version agrees; `CHANGELOG.md` has a
+  0.1.3 entry written for someone installing the plugin;
+  `claude plugin validate .` and `--strict` pass; all four suites pass; gate
+  exits 0. After merge, as T-055: the merge commit's own matrix run is green
+  before annotated tag `v0.1.3` is pushed, and a release carries the entry.
+- **Status:** in-progress — tag and release need GitHub access and follow the
+  merge; `v0.1.2` was never tagged either (T-055), so the README's pinned
+  install line has pointed at a missing tag since 0.1.2.
 - **Commit:** —

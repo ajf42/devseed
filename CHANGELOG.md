@@ -8,6 +8,25 @@ An installed plugin moves **only** when that field is bumped and you run
 Each entry says what changed for **someone installing the plugin**. Changes to
 devseed's own development tooling are noted only where they change what ships.
 
+## 0.1.3 — 2026-09-23
+
+**Fixed — every bootstrap ended with the turn blocked.** The seeded `CLAUDE.md`
+names the files bootstrap writes, bootstrap does not commit, and since 0.1.1
+the drift guard fails on a named path git does not track. So the `Stop` hook
+blocked the end of every bootstrap three times and released it unfinished,
+with no fix the agent was allowed to make. Bootstrap now **stages** the files
+it wrote — by explicit path, never `git add -A`, and still never commits — so
+the gate passes and your first commit is still yours to compose. The gate
+itself is unchanged (T-058).
+
+If you bootstrapped on 0.1.2, stage the files yourself:
+`git add -- DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh .gitignore .gitattributes .claude/rules .claude/activity.jsonl`.
+
+**Fixed — hook scratch showed up as untracked files.** The seeded `.gitignore`
+now excludes `.claude/.hook-state/`, `.claude/in-flight.md` and
+`.claude/settings.local.json`. On an existing project, add those three lines
+yourself; bootstrap does not run twice.
+
 ## 0.1.2 — 2026-09-09
 
 The first release meant for people other than its author. Four decisions that
