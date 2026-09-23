@@ -36,3 +36,10 @@ desktop.ini
 .env
 .env.*
 !.env.example
+
+# governed-dev hook scratch and Claude Code per-machine settings. Written from
+# the first session on; per-session and per-machine, so never committed.
+# .claude/activity.jsonl is deliberately NOT here -- it is the audit log.
+.claude/settings.local.json
+.claude/.hook-state/
+.claude/in-flight.md

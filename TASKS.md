@@ -1421,3 +1421,33 @@ Backlog for **devseed's own development**. Not the template shipped to consumers
 - **Acceptance:** written when the task is started, not now.
 - **Status:** todo
 - **Commit:** —
+
+## T-058 — Bootstrap ends at a passing gate
+
+- **Description:** Observed on the first bootstrap of a real consumer
+  (jobscout, 2026-09-23, 0.1.2): the skill seeds `CLAUDE.md`, whose structure
+  block names the files bootstrap just wrote, and then says "Do not commit".
+  Those files are untracked, so check 7 fails on every one of them and the
+  `Stop` hook blocks the turn three times before releasing it unfinished —
+  on every bootstrap, by construction. None of the three fixes the gate names
+  is open to the agent: committing is `/task`'s, ignoring the ledger is wrong,
+  and deleting the lines falsifies the map. The bootstrap suite never saw it
+  because section 4 commits the scratch project before running the drift
+  guard, a state no consumer reaches. Separately, `templates/.gitignore`
+  omits the hook scratch devseed's own `.gitignore` excludes
+  (`.claude/.hook-state/`, `.claude/in-flight.md`,
+  `.claude/settings.local.json`), so a consumer's tree is dirty with
+  per-machine state from the first session. Fix: bootstrap **stages** exactly
+  the paths it wrote or appended to — never `git add -A`, never a commit —
+  and the template ignores the hook scratch. The gate is unchanged: check 7
+  already reads the index, so this is not a loosening.
+- **Acceptance:** `bootstrap/SKILL.md` (and its `.claude/skills/` mirror)
+  instructs staging by explicit path and forbids `add -A`/`add .` and
+  committing; `templates/.gitignore` ignores the three hook-scratch paths;
+  the bootstrap suite's section 4 asserts, before any commit, that the
+  seeded-but-unstaged project **fails** the drift guard (the control), that
+  the same project with the skill's paths staged **passes** it, and that
+  `.claude/.hook-state/` and `.claude/settings.local.json` do not show in
+  `git status`; all four regression suites pass; gate exits 0.
+- **Status:** in-progress
+- **Commit:** —

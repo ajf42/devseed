@@ -90,23 +90,58 @@ done
 cp "$TEMPLATES/gate.sh" "$TEMPLATES/.gitignore" "$TEMPLATES/.gitattributes" "$TARGET/"
 cp "$TEMPLATES"/rules/*.md "$TARGET/.claude/rules/"
 : > "$TARGET/.claude/activity.jsonl"
-git -C "$TARGET" add -A >/dev/null 2>&1
-git -C "$TARGET" -c user.email=b@b -c user.name=b commit -qm "bootstrap" >/dev/null 2>&1
+# Hook scratch the plugin writes from the first session on. Created here so the
+# .gitignore assertion below is observed rather than assumed.
+mkdir -p "$TARGET/.claude/.hook-state" && : > "$TARGET/.claude/.hook-state/x"
+: > "$TARGET/.claude/settings.local.json"
 
 grep -q '{{PROJECT_NAME}}' "$TARGET"/*.md; [ $? -ne 0 ]
 check $? "no {{PROJECT_NAME}} left unsubstituted"
 grep -q 'eol=lf' "$TARGET/.gitattributes"
 check $? "seeded .gitattributes carries the eol=lf rule"
 
+git -C "$TARGET" status --porcelain --untracked-files=all \
+  | grep -qE '\.hook-state/|settings\.local\.json'; [ $? -ne 0 ]
+check $? "seeded .gitignore hides .claude/.hook-state/ and settings.local.json"
+
 # The point of this section: a freshly bootstrapped project must PASS the drift
 # guard on its first run. A dangling devseed id in any shipped template fails
 # the consumer's gate in a repo they have not touched -- which is exactly when
 # a reader decides whether the tool is trustworthy.
-( cd "$TARGET" && bash "$ROOT/plugins/governed-dev/gates/drift.sh" ) >"$SCRATCH/drift.out" 2>&1
-DRC=$?
+#
+# Asserted in the state the skill actually leaves: staged, NOT committed. The
+# skill does not commit (/task owns commits), and the Stop hook runs the gate
+# on the turn bootstrap ends. An earlier version of this section committed
+# first -- a state no consumer reaches -- and so it passed while every real
+# bootstrap was blocked three times by check 7 (T-058).
+drift_in_target() {
+  ( cd "$TARGET" && bash "$ROOT/plugins/governed-dev/gates/drift.sh" ) >"$SCRATCH/drift.out" 2>&1
+}
+
+# Control: unstaged, the structure block names untracked files and check 7
+# must say so. Without this the pass below could be vacuous.
+drift_in_target; DRC=$?
+[ "$DRC" -eq 2 ]
+check $? "control: seeded but unstaged fails the drift guard (got $DRC)"
+
+# Stage exactly what the skill stages, by explicit path, as it does.
+git -C "$TARGET" add -- DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh \
+  .gitignore .gitattributes .claude/rules .claude/activity.jsonl >/dev/null 2>&1
+drift_in_target; DRC=$?
 [ "$DRC" -eq 0 ] || sed 's/^/    /' "$SCRATCH/drift.out" >&2
 [ "$DRC" -eq 0 ]
-check $? "a freshly bootstrapped project passes the drift guard"
+check $? "a freshly bootstrapped project, staged and uncommitted, passes the drift guard"
+
+# The skill must stage by path, must not sweep the tree in, and must not commit.
+grep -qF 'git add --' "$SKILL"
+check $? "bootstrap/SKILL.md stages its files by explicit path"
+[ -z "$(grep -E 'git add (-A|\.)' "$SKILL" | grep -viE 'never|not')" ]
+check $? "bootstrap/SKILL.md names git add -A / git add . only to forbid them"
+grep -qF 'Do not commit' "$SKILL"
+check $? "bootstrap/SKILL.md still does not commit"
+
+# Section 7 below needs a HEAD to resolve task hashes against.
+git -C "$TARGET" -c user.email=b@b -c user.name=b commit -qm "bootstrap" >/dev/null 2>&1
 
 printf '\n== 5. no dangling .claude/rules/ references in shipped content ==\n'
 MISSING=0

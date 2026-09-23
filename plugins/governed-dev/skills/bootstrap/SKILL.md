@@ -112,9 +112,28 @@ all.
 
 ## After
 
-Report what was written, what was left as a skeleton and why, and what the human
-still owes each document. Then say plainly that the skills install namespaced —
-`/governed-dev:task`, not `/task` — because a "missing" skill is almost always
-that.
+**Stage what you wrote, and only that.** `git add --` each path you created or
+appended to, by name:
 
-Do not commit. `/task` owns commits.
+```
+git add -- DESIGN.md CLAUDE.md DECISIONS.md TASKS.md gate.sh \
+  .gitignore .gitattributes .claude/rules .claude/activity.jsonl
+```
+
+This is not optional. The seeded `CLAUDE.md` structure block names every one of
+these files, and gate check 7 fails on a named path that git does not track —
+it reads the index, so staged counts. The `Stop` hook runs that gate on the turn
+bootstrap ends: left unstaged, every bootstrap is blocked three times and
+released unfinished, and none of the fixes the gate offers is yours to take.
+Never `git add -A` or `git add .`: the human's own uncommitted work is not
+bootstrap's to sweep into their first governed commit.
+
+## After
+
+Report what was written, what was staged, what was left as a skeleton and why,
+and what the human still owes each document. Then say plainly that the skills
+install namespaced — `/governed-dev:task`, not `/task` — because a "missing"
+skill is almost always that.
+
+Do not commit. `/task` owns commits. Staging is a statement of what belongs in
+the repository; the commit, and what else goes in it, stays the human's.
